@@ -38,8 +38,16 @@
     <string name="location_coordinates">%1$.2f, %2$.2f</string>
     <string name="use_my_location">Use my location</string>
     <string name="refresh">Refresh</string>
+    <string name="refreshing">Refreshing</string>
     <string name="no_data_yet">No weather yet. Tap Refresh.</string>
     <string name="status">Updated %1$s · %2$.0f°C, feels like %3$.0f°C</string>
+    <string name="coming_days">Coming days</string>
+    <string name="today">Today</string>
+    <string name="tomorrow">Tomorrow</string>
+    <string name="degrees">%1$d°</string>
+    <string name="precipitation_mm">%1$.1f mm</string>
+    <string name="day_description">%1$s: %2$s, %3$d° to %4$d°</string>
+    <string name="day_rain_description">%1$.1f mm of precipitation</string>
     <string name="error_offline">Couldn\'t reach the weather service; showing the last known weather.</string>
     <string name="error_location">Couldn\'t get your location.</string>
 </resources>

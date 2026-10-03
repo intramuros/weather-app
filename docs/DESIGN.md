@@ -27,7 +27,8 @@ core/                  pure Kotlin/JVM, no Android
   Style, RenderPlan      → ordered list of asset paths per style
 
 app/                   Android (Compose, Glance, WorkManager, DataStore)
-  RefreshWorker          every 30 min while online
+  RefreshWorker          every 30 min while online, and on the widget's
+                         refresh button
   Refresher              fetch → plan → Compositor → save images
                          → update widget → set wallpaper if enabled and changed
   Compositor             stacks assets/styles/<style>/… into a Bitmap
@@ -36,8 +37,10 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   BuddyWallpaperService  the animated wallpaper; draws only while visible
   InfoOverlay            draws the widget's icons and text: place, temperature,
                          condition, humidity, wind
-  WeatherWidget          Glance widget showing the last picture
-  MainActivity           preview, style picker, wallpaper switches, location, credits
+  WeatherWidget          Glance widget showing the last picture, with a refresh
+                         button in the bottom-right corner
+  MainActivity           preview, forecast for the coming days, style picker,
+                         wallpaper switches, location, credits
 
 tools/placeholders/    generates placeholder art for the layered styles (`run`)
                        and animated GIF previews of the live wallpaper (`preview`)
@@ -85,7 +88,7 @@ or screen size), so a refresh every 30 minutes doesn't cause flicker.
 
 | Source | Used for | Key | Terms |
 |---|---|---|---|
-| Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
+| Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV; per day for 5 days: weather code, high/low, rain total, strongest gust | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
 | Buienradar `gpsgadget.buienradar.nl/data/raintext` | rain right now + next 2 h | none | Free if we credit buienradar.nl with a link. Show this in the app's About/credits. |
 | *Fallbacks* | | | |
 | KNMI Data Platform | official open data (CC-BY 4.0) | free key | Raw NetCDF/HDF5, so better processed on a server |
@@ -223,7 +226,9 @@ the same scale, wherever it should stand:
   exactly the middle of the scene, so the buddy's frame fills the screen.
 - **Widget:** the picture is square; the widget fits it to its own shape. The
   buddy stands at 32 % of the width, and the place, temperature, condition,
-  humidity and wind are drawn on the right (`InfoOverlay`), in a serif.
+  humidity and wind are drawn on the right (`InfoOverlay`), in a serif. A
+  refresh button sits in the bottom-right corner, over the ground; it shows
+  three dots while the refresh runs.
 
 - Layout: the character stands in the lower-middle, from about 35 % (umbrella
   top) to 87 % of the height. The ground line is at 87 %. The top of the
