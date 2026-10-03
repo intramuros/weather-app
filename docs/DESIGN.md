@@ -101,12 +101,16 @@ bands as the dressing rules above):
 | `cloudy-cold` | cloudy | cold | coat, scarf, closed umbrella |
 | `cloudy-freezing` | cloudy | freezing | coat, scarf |
 | `fog-cool` | fog | cool | sweater, jacket, scarf |
+| `fog-freezing` | fog | freezing | coat, scarf |
 | `windy-mild` | windy (day) | mild | hoodie, jeans |
 | `windy-cool` | windy, autumn leaves (day) | cool | trench coat, scarf |
 | `windy-night-cool` | windy night | cool | hoodie, jeans |
+| `windy-night-freezing` | windy night | freezing | coat, blowing scarf |
 | `rain-warm` | rain (day) | warm | T-shirt, shorts, umbrella |
 | `rain-mild` | rain | mild | light jacket, umbrella |
+| `rain-night-cool` | rain at night | cool | coat, scarf, umbrella |
 | `rain-cold` | rain | cold | coat, scarf, umbrella |
+| `rain-freezing` | freezing rain | freezing | coat, scarf |
 | `storm-warm` | storm | warm | raincoat, rain boots |
 | `storm-cool` | storm | cool | raincoat, rain boots, umbrella |
 | `storm-cold` | storm | cold | coat, scarf, umbrella |
@@ -118,8 +122,8 @@ it feels, among pictures of the same or a similar sky. Clothes count for
 more than the sky: a cold, sunny day gets the partly cloudy picture with a
 coat, not the sunny one with a dress. Snow is only ever shown as snow, and a
 sky for the wrong time of day (sun at night, stars by day) counts against a
-picture. Adding a picture for a missing combination (freezing rain or fog,
-rain at night) makes the match exact.
+picture. Adding a picture for a missing combination (a freezing windy day,
+a hot rainy day) makes the match exact.
 
 ```
 pixel-art/scene/<picture>.webp        the scene, no icons or text (1200 × 1200)
