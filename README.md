@@ -34,10 +34,6 @@ On your phone, open
 browser once; if Play Protect warns about an unknown developer, choose
 **More details → Install anyway**. New builds install over the old one.
 
-To update automatically, add this repository's URL in
-[Obtainium](https://github.com/ImranR98/Obtainium): it checks the latest
-release and offers each new build.
-
 ## Build and run
 
 Open the project in Android Studio, or from the command line (needs JDK 17+
