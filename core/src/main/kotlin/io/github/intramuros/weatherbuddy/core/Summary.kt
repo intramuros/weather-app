@@ -36,6 +36,29 @@ enum class Condition {
     }
 }
 
+/**
+ * Ready-made pictures for styles drawn as whole scenes (see [Style.wholeScenes]):
+ * one per kind of weather, each with the buddy already dressed for it.
+ */
+enum class ScenePicture(val slug: String) {
+    PARTLY_CLOUDY("partly-cloudy"),
+    CLOUDY("cloudy"),
+    RAIN("rain"),
+    STORM("storm"),
+    SNOW("snow"),
+    ;
+
+    companion object {
+        fun of(condition: Condition): ScenePicture = when (condition) {
+            Condition.CLEAR, Condition.PARTLY_CLOUDY -> PARTLY_CLOUDY
+            Condition.CLOUDY, Condition.FOG -> CLOUDY
+            Condition.DRIZZLE, Condition.RAIN, Condition.HEAVY_RAIN -> RAIN
+            Condition.THUNDERSTORM, Condition.HAIL -> STORM
+            Condition.SNOW -> SNOW
+        }
+    }
+}
+
 /** The eight main compass points, for "wind from the NW". */
 enum class CompassPoint {
     N, NE, E, SE, S, SW, W, NW;

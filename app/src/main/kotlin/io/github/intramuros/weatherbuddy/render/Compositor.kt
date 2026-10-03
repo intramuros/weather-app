@@ -15,10 +15,10 @@ import java.io.FileNotFoundException
 /**
  * Stacks a [RenderPlan]'s layers from `assets/styles/` into one bitmap.
  *
- * Scenery layers are square and scaled to cover the target, cropped around
- * the buddy. The buddy's layers are a 9:20 frame of the same height, placed
- * at [render]'s `buddyX`: centred on a wallpaper, to the left on the widget so
- * there is room for [WidgetInfo].
+ * Scenery layers (and whole-scene pictures) are square and scaled to cover the
+ * target, cropped around the buddy. The buddy's layers are a 9:20 frame of the
+ * same height, placed at [render]'s `buddyX`: centred on a wallpaper, to the
+ * left on the widget so there is room for [WidgetInfo].
  */
 class Compositor(private val assets: AssetManager) {
     private val overlay by lazy { InfoOverlay(assets) }
@@ -44,7 +44,7 @@ class Compositor(private val assets: AssetManager) {
             canvas.drawBitmap(layer, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), paint)
             layer.recycle()
         }
-        if (info != null) overlay.draw(canvas, info, style, plan.scene.timeOfDay, width, height)
+        if (info != null) overlay.draw(canvas, info, plan, style, width, height)
         return out
     }
 

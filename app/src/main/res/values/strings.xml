@@ -5,8 +5,10 @@
     <string name="widget_description">Your buddy, dressed for the weather outside</string>
     <string name="widget_empty">Tap to set up</string>
     <string name="buddy_description">A character dressed for the current weather</string>
-    <string name="widget_info_description">%1$s, %2$s, wind %3$s</string>
+    <string name="humidity_description">humidity %1$s</string>
+    <string name="wind_description">wind %1$s</string>
     <string name="wind_speed">%1$d km/h</string>
+    <string name="humidity">%1$d%%</string>
     <string name="condition_clear">Clear</string>
     <string name="condition_partly_cloudy">Partly cloudy</string>
     <string name="condition_cloudy">Cloudy</string>
@@ -16,7 +18,7 @@
     <string name="condition_heavy_rain">Heavy rain</string>
     <string name="condition_snow">Snow</string>
     <string name="condition_hail">Hail</string>
-    <string name="condition_thunderstorm">Thunderstorm</string>
+    <string name="condition_thunderstorm">Storm</string>
     <string name="style">Style</string>
     <string name="show_on">Show on</string>
     <string name="home_screen_wallpaper">Home screen wallpaper</string>
@@ -24,6 +26,7 @@
     <string name="widget_hint">Add the widget from your home screen\'s widget picker.</string>
     <string name="location">Location</string>
     <string name="location_default">De Bilt (default)</string>
+    <string name="place_default">De Bilt</string>
     <string name="location_coordinates">%1$.2f, %2$.2f</string>
     <string name="use_my_location">Use my location</string>
     <string name="refresh">Refresh</string>

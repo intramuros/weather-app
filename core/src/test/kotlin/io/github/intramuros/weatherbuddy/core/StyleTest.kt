@@ -47,12 +47,23 @@ class StyleTest {
 
     @Test
     fun requiredAssetCount() {
-        assertEquals(45, Style.PIXEL_ART.requiredAssets().size)
+        assertEquals(45, Style.UKIYO_E.requiredAssets().size)
+        assertEquals(5, Style.PIXEL_ART.requiredAssets().size)
+    }
+
+    @Test
+    fun wholeSceneStylesDrawOnePictureMatchingTheWeather() {
+        val snow = conditions(71, -2.0, 10.0)
+        assertEquals(listOf("pixel-art/scene/snow.webp"), RenderPlan.plan(snow, Style.PIXEL_ART).layers)
+        val storm = conditions(95, 14.0, 40.0)
+        assertEquals(listOf("pixel-art/scene/storm.webp"), RenderPlan.plan(storm, Style.PIXEL_ART).layers)
+        assertEquals("pixel-art/scene/storm-icons.webp", Style.PIXEL_ART.sceneIcons(ScenePicture.STORM))
+        assertTrue(Style.isScenery("pixel-art/scene/storm.webp"))
     }
 
     @Test
     fun sceneryIsBackgroundAndEffects() {
-        val scenery = Style.PIXEL_ART.requiredAssets().filter(Style::isScenery)
+        val scenery = Style.UKIYO_E.requiredAssets().filter(Style::isScenery)
         assertEquals(10 + 5 + 2, scenery.size)
         assertTrue(scenery.all { "/background/" in it || "/fx/" in it })
     }

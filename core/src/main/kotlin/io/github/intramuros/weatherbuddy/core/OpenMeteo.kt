@@ -11,7 +11,7 @@ import java.util.Locale
  * Free without an API key for non-commercial use; see https://open-meteo.com/en/terms.
  */
 object OpenMeteo {
-    private const val CURRENT_FIELDS = "temperature_2m,apparent_temperature,is_day,precipitation," +
+    private const val CURRENT_FIELDS = "temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation," +
         "weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index"
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -50,6 +50,7 @@ object OpenMeteo {
             uvIndex = c.uv_index,
             weatherCode = c.weather_code ?: throw missing("weather_code"),
             isDay = (c.is_day ?: throw missing("is_day")) != 0,
+            humidityPercent = c.relative_humidity_2m,
             precipitationMm = c.precipitation ?: 0.0,
         )
     }
@@ -64,6 +65,7 @@ object OpenMeteo {
     private class Current(
         val temperature_2m: Double? = null,
         val apparent_temperature: Double? = null,
+        val relative_humidity_2m: Double? = null,
         val is_day: Int? = null,
         val precipitation: Double? = null,
         val weather_code: Int? = null,

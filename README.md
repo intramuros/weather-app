@@ -1,7 +1,8 @@
 # Weather Buddy
 
 A cute character dressed for the weather where you are, shown as an Android
-widget, wallpaper or lock screen. You can pick the art style: **Pixel art**,
+widget, wallpaper or lock screen. The widget also shows the place,
+temperature, humidity and wind. You can pick the art style: **Pixel art**,
 **Ukiyo-e** or **Delfts Blauw**.
 
 Weather data comes from [Open-Meteo](https://open-meteo.com) (KNMI HARMONIE
@@ -13,9 +14,11 @@ model) and rain radar from [Buienradar](https://www.buienradar.nl).
   into a scene, an outfit and an ordered list of image layers.
 - `app/`: the Android app: settings screen, home-screen widget, wallpaper and
   lock screen, and a background refresh every 30 minutes.
-- `app/src/main/assets/styles/`: one folder of PNG layers per style. These are
-  placeholders for now.
-- `tools/placeholders/`: regenerates the placeholder art.
+- `app/src/main/assets/styles/`: one folder per style. Pixel art has five
+  finished scenes; the other styles have placeholder PNG layers.
+- `tools/placeholders/`: regenerates the placeholder art for the layered styles.
+- `tools/scenes/`: the pixel-art scene pictures and the script that turns
+  them into assets.
 - `docs/DESIGN.md`: decisions, dressing rules, asset pack spec and roadmap.
 
 ## Build and run

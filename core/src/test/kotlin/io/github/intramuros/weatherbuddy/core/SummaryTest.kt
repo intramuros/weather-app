@@ -39,4 +39,14 @@ class SummaryTest {
         assertEquals(Condition.THUNDERSTORM, label(95))
         assertEquals(Condition.THUNDERSTORM, label(99))
     }
+
+    @Test
+    fun everyConditionHasAPicture() {
+        assertEquals(ScenePicture.PARTLY_CLOUDY, ScenePicture.of(Condition.CLEAR))
+        assertEquals(ScenePicture.CLOUDY, ScenePicture.of(Condition.FOG))
+        assertEquals(ScenePicture.RAIN, ScenePicture.of(Condition.HEAVY_RAIN))
+        assertEquals(ScenePicture.STORM, ScenePicture.of(Condition.HAIL))
+        assertEquals(ScenePicture.SNOW, ScenePicture.of(Condition.SNOW))
+        assertEquals(ScenePicture.entries.toSet(), Condition.entries.map(ScenePicture::of).toSet())
+    }
 }

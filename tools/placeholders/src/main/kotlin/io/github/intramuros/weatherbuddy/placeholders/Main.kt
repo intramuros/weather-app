@@ -17,23 +17,22 @@ import java.util.Random
 import javax.imageio.ImageIO
 
 /**
- * Generates placeholder art for every layer of every style, so the app can be
- * tried end to end before the real art exists. Scenery (background and
+ * Generates placeholder art for every layer of the layered styles, so the app
+ * can be tried end to end before the real art exists. Scenery (background and
  * effects) is drawn in a 300 × 300 logical canvas, the buddy in a 135 × 300
- * frame. Pixel art stays at that size and has its own painter
- * ([PixelArtPainter]); the other styles are drawn 4× larger with anti-aliasing.
+ * frame, both 4× larger with anti-aliasing. Styles drawn as whole scenes
+ * (pixel art) have real pictures; see `tools/scenes/`.
  *
  * Usage: `./gradlew :tools:placeholders:run`
  */
 fun main(args: Array<String>) {
     val out = File(args.firstOrNull() ?: "app/src/main/assets/styles")
-    for (style in Style.entries) {
-        val paint: (String) -> BufferedImage =
-            if (style == Style.PIXEL_ART) PixelArtPainter()::paint else Painter(style)::paint
+    for (style in Style.entries.filter { !it.wholeScenes }) {
+        val painter = Painter(style)
         for (path in style.requiredAssets()) {
             val file = File(out, path)
             file.parentFile.mkdirs()
-            ImageIO.write(paint(path), "png", file)
+            ImageIO.write(painter.paint(path), "png", file)
         }
         println("${style.displayName}: ${style.requiredAssets().size} layers")
     }
@@ -65,11 +64,6 @@ private class Palette(
 private fun rgb(hex: Int) = Color(hex)
 
 private val PALETTES = mapOf(
-    Style.PIXEL_ART to Palette(
-        skyDay = rgb(0x5FCDE4), skyNight = rgb(0x222034), ground = rgb(0x6ABE30), skin = rgb(0xEEC39A),
-        outline = rgb(0x222034), primary = rgb(0xD95763), secondary = rgb(0x5B6EE1), accent = rgb(0xFBF236),
-        dark = rgb(0x663931), water = rgb(0x639BFF), light = rgb(0xFFFFFF),
-    ),
     Style.UKIYO_E to Palette(
         skyDay = rgb(0xEFE3C8), skyNight = rgb(0x1F2F4A), ground = rgb(0x8A9A5B), skin = rgb(0xF2DCC0),
         outline = rgb(0x1C1C1C), primary = rgb(0xC0392B), secondary = rgb(0x2E4A7D), accent = rgb(0xD4A23A),
@@ -84,15 +78,14 @@ private val PALETTES = mapOf(
 
 private class Painter(private val style: Style) {
     private val p = PALETTES.getValue(style)
-    private val scale = if (style.pixelated) 1 else 4
+    private val scale = 4
     private lateinit var g: Graphics2D
 
     fun paint(path: String): BufferedImage {
         val width = if (Style.isScenery(path)) SCENE_W else W
         val image = BufferedImage((width * scale).toInt(), (H * scale).toInt(), BufferedImage.TYPE_INT_ARGB)
         g = image.createGraphics()
-        val aa = if (style.pixelated) RenderingHints.VALUE_ANTIALIAS_OFF else RenderingHints.VALUE_ANTIALIAS_ON
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa)
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
         g.scale(scale.toDouble(), scale.toDouble())
         g.stroke = BasicStroke(1f)
         val (_, category, file) = path.split('/')
@@ -183,7 +176,7 @@ private class Painter(private val style: Style) {
                 g.draw(rect(8.0, 8.0, SCENE_W - 16, H - 16))
             }
             Style.UKIYO_E -> fill(rect(FRAME_X + 112.0, 270.0, 14.0, 18.0), p.primary, outlined = false)
-            Style.PIXEL_ART -> Unit
+            else -> Unit
         }
     }
 
@@ -350,7 +343,7 @@ private class Painter(private val style: Style) {
                 repeat(gusts) {
                     val y = 30 + random.nextDouble() * 200
                     val x = random.nextDouble() * (SCENE_W - 50)
-                    g.color = if (style == Style.PIXEL_ART) p.light else mix(p.light, p.secondary, 0.3)
+                    g.color = mix(p.light, p.secondary, 0.3)
                     g.draw(Arc2D.Double(x, y, 50.0, 12.0, 0.0, 160.0, Arc2D.OPEN))
                 }
                 if (slug == "wind-stormy") repeat(13) {

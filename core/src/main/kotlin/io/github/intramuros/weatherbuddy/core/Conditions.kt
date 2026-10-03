@@ -17,6 +17,8 @@ data class Conditions(
     /** WMO weather interpretation code as used by Open-Meteo. */
     val weatherCode: Int,
     val isDay: Boolean,
+    /** Relative humidity, 0–100. `null` in snapshots saved before it was fetched. */
+    val humidityPercent: Double? = null,
     /** Precipitation over the preceding interval, in mm. */
     val precipitationMm: Double,
     /** Radar-based rain forecast for the next ~2 hours (Buienradar), in time order. */

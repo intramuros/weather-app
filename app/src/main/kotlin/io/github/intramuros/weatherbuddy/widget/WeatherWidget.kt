@@ -1,9 +1,7 @@
 package io.github.intramuros.weatherbuddy.widget
 
-import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.graphics.Bitmap
-import android.os.Bundle
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -26,7 +24,9 @@ import androidx.glance.layout.ContentScale
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.text.Text
 import io.github.intramuros.weatherbuddy.R
+import io.github.intramuros.weatherbuddy.Refresher
 import io.github.intramuros.weatherbuddy.core.Scene
+import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import io.github.intramuros.weatherbuddy.render.WidgetInfo
 import io.github.intramuros.weatherbuddy.ui.MainActivity
@@ -43,7 +43,8 @@ class WeatherWidget : GlanceAppWidget() {
         val (image, description) = withContext(Dispatchers.IO) {
             val store = WeatherStore(context)
             val conditions = store.loadSnapshot()?.conditions
-            store.loadWidgetImage() to conditions?.let { WidgetInfo.from(context, it, Scene.from(it)).describe(context) }
+            val place = Refresher.placeName(context, SettingsRepository(context).current())
+            store.loadWidgetImage() to conditions?.let { WidgetInfo.from(context, it, Scene.from(it), place).describe(context) }
         }
         provideContent { Content(image, description) }
     }
@@ -55,7 +56,7 @@ class WeatherWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .fillMaxSize()
                 .cornerRadius(16.dp)
-                .background(ColorProvider(day = Color(0xFFBDE7F5), night = Color(0xFF222034)))
+                .background(ColorProvider(day = Color(0xFF34436E), night = Color(0xFF222034)))
                 .clickable(actionStartActivity<MainActivity>()),
             contentAlignment = Alignment.Center,
         ) {
@@ -63,7 +64,7 @@ class WeatherWidget : GlanceAppWidget() {
                 Image(
                     provider = ImageProvider(image),
                     contentDescription = description ?: context.getString(R.string.buddy_description),
-                    contentScale = ContentScale.Crop,
+                    contentScale = ContentScale.Fit,
                     modifier = GlanceModifier.fillMaxSize(),
                 )
             } else {
@@ -79,16 +80,5 @@ class WeatherWidgetReceiver : GlanceAppWidgetReceiver() {
     override fun onEnabled(context: Context) {
         super.onEnabled(context)
         RefreshWorker.runOnce(context)
-    }
-
-    /** The picture is drawn for the widget's shape, so redraw it after a resize. */
-    override fun onAppWidgetOptionsChanged(
-        context: Context,
-        appWidgetManager: AppWidgetManager,
-        appWidgetId: Int,
-        newOptions: Bundle,
-    ) {
-        super.onAppWidgetOptionsChanged(context, appWidgetManager, appWidgetId, newOptions)
-        RefreshWorker.redraw(context)
     }
 }
