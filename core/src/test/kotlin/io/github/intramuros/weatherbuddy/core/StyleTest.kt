@@ -49,12 +49,35 @@ class StyleTest {
     @Test
     fun requiredAssetCount() {
         // 45 still images + 9 hair frames + 5 blinks + 3 windy-scarf frames.
-        assertEquals(62, Style.PIXEL_ART.requiredAssets().size)
+        assertEquals(62, Style.UKIYO_E.requiredAssets().size)
+        assertEquals(ScenePicture.entries.size, Style.PIXEL_ART.requiredAssets().size)
+    }
+
+    @Test
+    fun wholeSceneStylesDrawOnePictureMatchingTheWeather() {
+        val snow = RenderPlan.plan(conditions(71, -2.0, 10.0), Style.PIXEL_ART)
+        assertEquals(listOf("pixel-art/scene/snow-freezing.webp"), snow.stillLayers)
+        assertEquals(ScenePicture.SNOW_FREEZING, snow.picture)
+        val storm = conditions(95, 14.0, 40.0)
+        assertEquals(listOf("pixel-art/scene/storm-cool.webp"), RenderPlan.plan(storm, Style.PIXEL_ART).stillLayers)
+        assertEquals("pixel-art/scene/storm-cool-icons.webp", Style.PIXEL_ART.sceneIcons(ScenePicture.STORM_COOL))
+        assertTrue(Style.isScenery("pixel-art/scene/storm-cool.webp"))
+        assertEquals(null, RenderPlan.plan(storm, Style.UKIYO_E).picture)
+    }
+
+    @Test
+    fun wholeScenesGetMovingWeatherOnTop() {
+        val layers = RenderPlan.plan(conditions(63, 8.0, 45.0), Style.PIXEL_ART).layers
+        assertTrue(layers.first() is Layer.Sprite)
+        val particles = layers.filterIsInstance<Layer.Particles>()
+        assertEquals(listOf(ParticleKind.DROP, ParticleKind.STREAK), particles.flatMap { p -> p.specs.map { it.kind } })
+        // The finished picture already shows its weather, so a still picture adds nothing.
+        assertTrue(particles.all { it.still == null })
     }
 
     @Test
     fun sceneryIsBackgroundAndEffects() {
-        val scenery = Style.PIXEL_ART.requiredAssets().filter(Style::isScenery)
+        val scenery = Style.UKIYO_E.requiredAssets().filter(Style::isScenery)
         assertEquals(10 + 5 + 2, scenery.size)
         assertTrue(scenery.all { "/background/" in it || "/fx/" in it })
     }
@@ -81,27 +104,35 @@ class StyleTest {
 
     @Test
     fun windAnimatesHairAndScarf() {
-        val plan = RenderPlan.plan(conditions(3, 5.0, 45.0), Style.PIXEL_ART)
+        val plan = RenderPlan.plan(conditions(3, 5.0, 45.0), Style.UKIYO_E)
         val animated = plan.layers.filterIsInstance<Layer.Sprite>().filter { it.isAnimated }.map { it.still }
         assertEquals(
             listOf(
-                "pixel-art/face/happy.png",
-                "pixel-art/hair/breezy-0.png",
-                "pixel-art/accessory/scarf-wind-0.png",
+                "ukiyo-e/face/happy.png",
+                "ukiyo-e/hair/breezy-0.png",
+                "ukiyo-e/accessory/scarf-wind-0.png",
             ),
             animated,
         )
         val particles = plan.layers.filterIsInstance<Layer.Particles>()
-        assertEquals(listOf("pixel-art/fx/wind-breezy.png"), particles.map { it.still })
+        assertEquals(listOf("ukiyo-e/fx/wind-breezy.png"), particles.map { it.still })
     }
 
     @Test
-    fun eastWindMirrorsThePicture() {
+    fun eastWindMirrorsLayeredArt() {
         val windy = conditions(3, 12.0, 45.0)
-        assertTrue(RenderPlan.plan(windy.copy(windDirectionDeg = 90.0), Style.UKIYO_E).mirrored)
+        val east = RenderPlan.plan(windy.copy(windDirectionDeg = 90.0), Style.UKIYO_E)
+        assertTrue(east.mirrored && east.particlesMirrored)
         assertFalse(RenderPlan.plan(windy.copy(windDirectionDeg = 240.0), Style.UKIYO_E).mirrored)
         assertFalse(RenderPlan.plan(windy.copy(windDirectionDeg = null), Style.UKIYO_E).mirrored)
         // No visible wind, nothing to follow.
         assertFalse(RenderPlan.plan(conditions(3, 12.0, 10.0).copy(windDirectionDeg = 90.0), Style.UKIYO_E).mirrored)
+    }
+
+    @Test
+    fun finishedPicturesStayPutWhileTheirWeatherFollowsTheWind() {
+        val plan = RenderPlan.plan(conditions(63, 8.0, 45.0).copy(windDirectionDeg = 90.0), Style.PIXEL_ART)
+        assertFalse(plan.mirrored)
+        assertTrue(plan.particlesMirrored)
     }
 }

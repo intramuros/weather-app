@@ -10,13 +10,13 @@ set as the home and/or lock screen wallpaper. The art style can be changed.
 |---|---|
 | Platform | Android first |
 | Art styles (v1) | **Pixel art**, **Ukiyo-e**, **Delfts Blauw** |
-| Image production | **Layered assets** composited on the device (offline, free, consistent character) |
+| Image production | **Pixel art:** finished scenes, one per kind of weather and warmth. **Other styles:** layered assets composited on the device (offline, free, consistent character) |
 | Character | A girl, the same in all three styles |
-| Animation | **Live wallpaper** with moving rain, snow and wind, plus frame loops for her hair, blinking and scarf. The widget and the "still picture" wallpaper options stay still. |
+| Animation | **Live wallpaper** with moving rain, snow and wind in every style. In the layered styles her hair, blinking and scarf move too; the finished pixel-art scenes keep her still. The widget and the "still picture" wallpaper options stay still. |
 | Forecast | Open-Meteo using KNMI HARMONIE (`models=knmi_seamless`) |
 | Rain nowcast | Buienradar `raintext` (2 h ahead, 5-minute steps) |
 | Language | **Kotlin** throughout. Pure logic sits in a plain Kotlin module (`core/`), so it can become Kotlin Multiplatform if iOS ever happens. |
-| Location | Coarse, read only while the app is open, rounded to ~1 km. No background-location permission; the background refresh reuses the last saved location (default: De Bilt). |
+| Location | Coarse, read only while the app is open, rounded to ~1 km. No background-location permission; the background refresh reuses the last saved location (default: De Bilt). Its town name comes from the platform `Geocoder`, when it has one. |
 
 ## Architecture
 
@@ -34,12 +34,14 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   LiveRenderer           draws the plan at any moment: still runs flattened once,
                          frame loops + particles per frame
   BuddyWallpaperService  the animated wallpaper; draws only while visible
-  InfoOverlay            draws temperature, condition and wind onto the widget picture
+  InfoOverlay            draws the widget's icons and text: place, temperature,
+                         condition, humidity, wind
   WeatherWidget          Glance widget showing the last picture
   MainActivity           preview, style picker, wallpaper switches, location, credits
 
-tools/placeholders/    generates placeholder art for every layer (`run`) and
-                       animated GIF previews of the live wallpaper (`preview`)
+tools/placeholders/    generates placeholder art for the layered styles (`run`)
+                       and animated GIF previews of the live wallpaper (`preview`)
+tools/scenes/          turns the pixel-art scene mock-ups into assets
 ```
 
 `core` has no networking and no I/O. It turns API responses into
@@ -60,13 +62,16 @@ or screen size), so a refresh every 30 minutes doesn't cause flicker.
   position directly from the time, so frames never depend on the ones before
   and nothing drifts over hours. Each style sets the particle colour and line
   width.
-- **The girl moves in frame loops.** Her hair blows in 4 frames (faster in a
-  storm), she blinks every few seconds, and her scarf flutters in the wind.
-  Clothes stay still.
+- **In the layered styles the girl moves in frame loops.** Her hair blows in
+  4 frames (faster in a storm), she blinks every few seconds, and her scarf
+  flutters in the wind. Clothes stay still. The finished pixel-art scenes have
+  her painted in, so there only the weather moves, falling over the picture.
 - **Wind direction.** Art is drawn with the wind blowing to the right. When the
-  real wind blows west (an east wind), the scenery and the buddy are each
-  mirrored in place, so she stays where she stands and the widget's text
-  reads normally.
+  real wind blows west (an east wind), layered art is mirrored, each layer in
+  place, so she stays where she stands and the widget's text reads normally.
+  Finished scenes are never mirrored (they're composed one way round, and the
+  widget's text positions are measured on them); only their particles follow
+  the wind.
 - **Frame rate and battery.** Pixel art runs at 12 fps and the other styles at
   24, or 6 in battery saver. Nothing is drawn while the wallpaper is hidden.
   For pixel art, particles snap to the scene's pixel grid, so they look like
@@ -80,7 +85,7 @@ or screen size), so a refresh every 30 minutes doesn't cause flicker.
 
 | Source | Used for | Key | Terms |
 |---|---|---|---|
-| Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, wind speed/direction/gusts, WMO weather code, day/night, UV | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
+| Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
 | Buienradar `gpsgadget.buienradar.nl/data/raintext` | rain right now + next 2 h | none | Free if we credit buienradar.nl with a link. Show this in the app's About/credits. |
 | *Fallbacks* | | | |
 | KNMI Data Platform | official open data (CC-BY 4.0) | free key | Raw NetCDF/HDF5, so better processed on a server |
@@ -109,7 +114,54 @@ Modifiers:
 
 ## Asset pack spec
 
-All three styles ship the **same file list**, generated by
+### Pixel art: finished scenes
+
+Pixel art is a set of finished square pictures of the same girl on an
+Amsterdam canal (`ScenePicture`). Each shows one kind of sky (`SceneKind`)
+and dresses her for one band of feels-like temperature (`Warmth`, the same
+bands as the dressing rules above):
+
+| Picture | Sky | Warmth | Outfit |
+|---|---|---|---|
+| `clear-warm` | sunny | warm (20–25 °C) | dress, cardigan, sunglasses |
+| `partly-cloudy-cold` | partly cloudy | cold (3–10 °C) | coat, scarf, closed umbrella |
+| `cloudy-cold` | cloudy | cold | coat, scarf, closed umbrella |
+| `windy-cool` | windy, autumn leaves | cool (10–15 °C) | trench coat, scarf |
+| `rain-cold` | rain | cold | coat, scarf, umbrella |
+| `storm-cool` | storm | cool | raincoat, rain boots, umbrella |
+| `storm-cold` | storm | cold | coat, scarf, umbrella |
+| `snow-cold` | snow | cold | coat, scarf, umbrella |
+| `snow-freezing` | snow | freezing (< 3 °C) | puffer, bobble hat, mittens |
+
+`ScenePicture.choose` picks the picture whose outfit is closest to how warm
+it feels, among pictures of the same or a similar sky. Clothes count for
+more than the sky: a cold, sunny day gets the partly cloudy picture with a
+coat, not the sunny one with a dress. Snow is only ever shown as snow, and
+the sunny picture is avoided at night. Adding a picture for a missing
+combination (a hot day, a mild rainy day, a night) makes the match exact.
+
+```
+pixel-art/scene/<picture>.webp        the scene, no icons or text (1200 × 1200)
+pixel-art/scene/<picture>-icons.webp  its weather, drop and wind icons, on transparency
+```
+
+The sources are widget mock-ups with example text, in `tools/scenes/source/`,
+named `<sky>-<warmth>`. `tools/scenes/prepare.py` removes the frame, text and
+icons, fills the gaps with the surrounding sky, and writes both files. The
+wallpaper uses the plain scene (its middle, on a phone). The widget draws the
+icons on top, then the live text where the mock-up had it: place, humidity
+and wind on the right, temperature and condition on the left. `SceneLayout`
+holds those positions per picture, measured from the artwork. The
+temperature uses Jersey 10 and the rest DotGothic16 (Latin subset), both SIL
+OFL, in `assets/fonts/`.
+
+To add a picture: put the mock-up in `tools/scenes/source/`, add its text and
+icon boxes to `prepare.py` and run it, then add a `ScenePicture` entry and
+its `SceneLayout`.
+
+### Layered styles
+
+Ukiyo-e and Delfts Blauw ship the **same file list**, generated by
 `Style.requiredAssets()`. A unit test checks that every layer the logic can
 draw exists in that list and that nothing in the list is unreachable.
 
@@ -147,25 +199,15 @@ the same scale, wherever it should stand:
 
 - **Wallpaper (still or animated):** the buddy is centred. A 9:20 phone shows
   exactly the middle of the scene, so the buddy's frame fills the screen.
-- **Widget:** the picture is drawn in the widget's own shape. The buddy stands
-  at 32 % of the width, and the temperature, condition ("Rain") and wind
-  speed and direction are drawn on the right (`InfoOverlay`). Pixel art uses
-  the Pixelify Sans font (SIL OFL, in `assets/fonts/`); the other styles use
-  a serif.
+- **Widget:** the picture is square; the widget fits it to its own shape. The
+  buddy stands at 32 % of the width, and the place, temperature, condition,
+  humidity and wind are drawn on the right (`InfoOverlay`), in a serif.
 
 - Layout: the character stands in the lower-middle, from about 35 % (umbrella
   top) to 87 % of the height. The ground line is at 87 %. The top of the
   picture stays free for the lock-screen clock, and the top right of the
   scene for the widget's text, so keep the sun and moon left of centre.
-- **Pixel art** is drawn at **300 × 300** (scenery) and **135 × 300** (buddy)
-  and shipped at that size. The app scales it up with nearest-neighbour
-  scaling, which keeps pixels crisp; the widget is rendered at twice the
-  scene size so the scale stays a whole number. The placeholder pack is a
-  Dutch canal (gabled houses, a bridge, a street lamp, bollards, water
-  reflections) with a chibi buddy: big head, big sparkly eyes, rosy cheeks
-  and a heart hair clip.
-- Other styles: draw at **2400 × 2400** (scenery) and **1080 × 2400** (buddy)
-  or larger.
+- Draw at **2400 × 2400** (scenery) and **1080 × 2400** (buddy) or larger.
 - **Ukiyo-e:** flat colour areas, bold outlines and a woodblock paper
   texture in the background layer. Prussian blue, vermilion and ochre. Rain is
   drawn as long, thin diagonal lines in the style of Hiroshige; the app's
@@ -182,10 +224,11 @@ the same scale, wherever it should stand:
 3. ✅ Placeholder asset pack (`./gradlew :tools:placeholders:run`)
 4. ✅ Glance widget + home/lock screen wallpaper
 5. ✅ Live wallpaper: particles, hair/blink/scarf loops, wind direction
-6. ✅ CI: tests, lint and an installable APK on every push
-7. Real art for the three styles (pixel art first). Drop PNGs into
-   `app/src/main/assets/styles/<style>/` with the names above.
-8. ✅ Widget layout: buddy on the left, temperature, condition and wind on
-   the right
+6. ✅ CI: tests, lint and an installable APK on every pull request; `master`
+   publishes it
+7. Real art: ✅ pixel art (finished scenes); Ukiyo-e and Delfts Blauw still
+   placeholders. Drop PNGs into `app/src/main/assets/styles/<style>/` with
+   the names above.
+8. ✅ Widget layout: place, temperature, condition, humidity and wind
 9. Polish: rain splashes, a forecast strip ("rain at 14:45"), more styles,
    a private release key for a store release

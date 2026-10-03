@@ -10,25 +10,20 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import androidx.work.workDataOf
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
 import java.util.concurrent.TimeUnit
 
 class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
-        val fetch = inputData.getBoolean(KEY_FETCH, true)
-        return when (val result = Refresher.run(applicationContext, fetch)) {
+    override suspend fun doWork(): Result =
+        when (val result = Refresher.run(applicationContext, fetch = true)) {
             is RefreshResult.Ok -> if (result.stale) Result.retry() else Result.success()
-            RefreshResult.NoData -> if (fetch) Result.retry() else Result.success()
+            RefreshResult.NoData -> Result.retry()
         }
-    }
 
     companion object {
         private const val PERIODIC = "refresh"
         private const val ONCE = "refresh-now"
-        private const val REDRAW = "redraw"
-        private const val KEY_FETCH = "fetch"
 
         private val online = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
@@ -44,12 +39,6 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         fun runOnce(context: Context) {
             val request = OneTimeWorkRequestBuilder<RefreshWorker>().setConstraints(online).build()
             WorkManager.getInstance(context).enqueueUniqueWork(ONCE, ExistingWorkPolicy.REPLACE, request)
-        }
-
-        /** Re-renders the pictures from the last known weather, e.g. after the widget is resized. */
-        fun redraw(context: Context) {
-            val request = OneTimeWorkRequestBuilder<RefreshWorker>().setInputData(workDataOf(KEY_FETCH to false)).build()
-            WorkManager.getInstance(context).enqueueUniqueWork(REDRAW, ExistingWorkPolicy.REPLACE, request)
         }
     }
 }

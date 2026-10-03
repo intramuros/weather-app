@@ -2,8 +2,8 @@ package io.github.intramuros.weatherbuddy.core
 
 /** One step of the picture, drawn bottom-most first. */
 sealed interface Layer {
-    /** The image to draw in a still picture (widget, static wallpaper). */
-    val still: String
+    /** The image to draw in a still picture (widget, static wallpaper), if any. */
+    val still: String?
 
     /** Every asset this layer can draw. */
     val assets: List<String>
@@ -32,11 +32,12 @@ sealed interface Layer {
     }
 
     /**
-     * Rain, snow, hail or wind. A still picture uses the painted [still] image;
-     * the live wallpaper animates [specs] instead.
+     * Rain, snow, hail or wind. A still picture uses the painted [still] image,
+     * if the style has one (finished scenes already show their weather); the
+     * live wallpaper animates [specs] instead.
      */
-    data class Particles(override val still: String, val specs: List<ParticleSpec>) : Layer {
-        override val assets: List<String> get() = listOf(still)
+    data class Particles(override val still: String?, val specs: List<ParticleSpec>) : Layer {
+        override val assets: List<String> get() = listOfNotNull(still)
     }
 }
 

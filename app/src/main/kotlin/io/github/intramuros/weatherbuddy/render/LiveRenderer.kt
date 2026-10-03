@@ -133,7 +133,7 @@ class LiveRenderer(assets: AssetManager, private val plan: RenderPlan, private v
                             drawBitmap(frame.bitmap, null, dst, bitmapPaint)
                         }
                     }
-                    is Particles -> mirroredIf(plan.mirrored, sceneBounds) {
+                    is Particles -> mirroredIf(plan.particlesMirrored, sceneBounds) {
                         val k = (sceneBounds.width / ArtCanvas.SCENE_SIZE).toFloat()
                         withTranslation(sceneBounds.left, sceneBounds.top) {
                             scale(k, k)

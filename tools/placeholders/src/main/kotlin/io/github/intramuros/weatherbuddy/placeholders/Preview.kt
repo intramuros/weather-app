@@ -63,7 +63,8 @@ private fun weather(
 
 private val SCENARIOS = listOf(
     Triple("pixel-art-windy-rain", Style.PIXEL_ART, weather(63, 12.0, 30.0, 50.0, from = 240.0, rainMmH = 2.0)),
-    Triple("pixel-art-calm-rain", Style.PIXEL_ART, weather(61, 14.0, 8.0, 15.0, from = 240.0, rainMmH = 1.0)),
+    Triple("pixel-art-snow", Style.PIXEL_ART, weather(73, -3.0, 20.0, 30.0, from = 240.0)),
+    Triple("pixel-art-storm-from-east", Style.PIXEL_ART, weather(95, 14.0, 45.0, 75.0, from = 90.0, rainMmH = 5.0)),
     Triple("ukiyo-e-storm-from-east", Style.UKIYO_E, weather(65, 9.0, 50.0, 80.0, from = 90.0, rainMmH = 6.0)),
     Triple("delfts-blauw-snow", Style.DELFTS_BLAUW, weather(73, -3.0, 25.0, 40.0, from = 200.0)),
 )
@@ -102,9 +103,9 @@ private fun renderGif(assets: File, plan: RenderPlan, style: Style, file: File) 
         val aa = if (style.pixelated) RenderingHints.VALUE_ANTIALIAS_OFF else RenderingHints.VALUE_ANTIALIAS_ON
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa)
         // Each layer flips in place, like in the app.
-        fun mirrored(b: Rectangle2D.Double, draw: () -> Unit) {
+        fun mirrored(b: Rectangle2D.Double, mirror: Boolean, draw: () -> Unit) {
             val saved = g.transform
-            if (plan.mirrored) {
+            if (mirror) {
                 g.translate(b.centerX, 0.0)
                 g.scale(-1.0, 1.0)
                 g.translate(-b.centerX, 0.0)
@@ -117,9 +118,9 @@ private fun renderGif(assets: File, plan: RenderPlan, style: Style, file: File) 
                 is Layer.Sprite -> {
                     val path = layer.frameAt(t)
                     val b = bounds(path)
-                    mirrored(b) { g.drawImage(image(path), b.x.toInt(), b.y.toInt(), b.width.toInt(), b.height.toInt(), null) }
+                    mirrored(b, plan.mirrored) { g.drawImage(image(path), b.x.toInt(), b.y.toInt(), b.width.toInt(), b.height.toInt(), null) }
                 }
-                is Layer.Particles -> mirrored(Rectangle2D.Double(sceneLeft, 0.0, sceneSize, sceneSize)) {
+                is Layer.Particles -> mirrored(Rectangle2D.Double(sceneLeft, 0.0, sceneSize, sceneSize), plan.particlesMirrored) {
                     g.translate(sceneLeft, 0.0)
                     g.scale(sceneSize / ArtCanvas.SCENE_SIZE, sceneSize / ArtCanvas.SCENE_SIZE)
                     for ((spec, field) in fields.getValue(layer)) {

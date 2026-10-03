@@ -8,6 +8,10 @@ package io.github.intramuros.weatherbuddy.core
  * Scenery layers (see [isScenery]) are square; the buddy's layers are a 9:20
  * frame of the same height, so the buddy can stand anywhere in the scene.
  * Animated parts are numbered frames: `hair/breezy-0.png` … `-3.png`.
+ *
+ * Styles with [wholeScenes] instead ship one finished square picture per
+ * [ScenePicture] at `<style>/scene/<slug>.webp`, plus the widget's icons for
+ * it at `<style>/scene/<slug>-icons.webp`. Only their weather moves.
  */
 enum class Style(
     val slug: String,
@@ -16,8 +20,10 @@ enum class Style(
     val pixelated: Boolean,
     /** Frames per second for the live wallpaper. Pixel art looks right choppy. */
     val fps: Int,
+    /** Drawn as one finished picture per kind of weather, rather than layers. */
+    val wholeScenes: Boolean = false,
 ) {
-    PIXEL_ART("pixel-art", "Pixel art", pixelated = true, fps = 12),
+    PIXEL_ART("pixel-art", "Pixel art", pixelated = true, fps = 12, wholeScenes = true),
     UKIYO_E("ukiyo-e", "Ukiyo-e", pixelated = false, fps = 24),
     DELFTS_BLAUW("delfts-blauw", "Delfts Blauw", pixelated = false, fps = 24),
     ;
@@ -62,6 +68,11 @@ enum class Style(
 
     private fun windFx(wind: Wind) = path("fx", "wind-${wind.slug}")
 
+    private fun scenePicture(picture: ScenePicture) = "$slug/scene/${picture.slug}.webp"
+
+    /** The widget's icons for a [ScenePicture]: the same size, transparent elsewhere. */
+    fun sceneIcons(picture: ScenePicture) = "$slug/scene/${picture.slug}-icons.webp"
+
     private fun face(expression: Expression): Layer.Sprite =
         if (expression == Expression.SLEEPY) {
             sprite("face", expression.slug) // Eyes already closed.
@@ -86,8 +97,25 @@ enum class Style(
         else -> sprite("accessory", accessory.slug)
     }
 
-    /** The layer stack, bottom-most first. */
-    fun layers(scene: Scene, outfit: Outfit, conditions: Conditions): List<Layer> = buildList {
+    /**
+     * The layer stack, bottom-most first. [picture] is the scene to show for
+     * [wholeScenes] styles (see [ScenePicture.choose]).
+     */
+    fun layers(scene: Scene, outfit: Outfit, conditions: Conditions, picture: ScenePicture?): List<Layer> =
+        if (wholeScenes) {
+            wholeScene(requireNotNull(picture) { "$this is drawn as whole scenes" }, scene, conditions)
+        } else {
+            layeredScene(scene, outfit, conditions)
+        }
+
+    /** The finished picture, with moving weather over it in the live wallpaper. */
+    private fun wholeScene(picture: ScenePicture, scene: Scene, conditions: Conditions): List<Layer> = buildList {
+        add(Layer.Sprite(scenePicture(picture)))
+        ParticleSpec.precipitation(scene, conditions)?.let { add(Layer.Particles(null, listOf(it))) }
+        ParticleSpec.wind(scene, conditions).takeIf { it.isNotEmpty() }?.let { add(Layer.Particles(null, it)) }
+    }
+
+    private fun layeredScene(scene: Scene, outfit: Outfit, conditions: Conditions): List<Layer> = buildList {
         val precipitation = ParticleSpec.precipitation(scene, conditions)
             ?.let { Layer.Particles(path("fx", scene.precipitation.slug), listOf(it)) }
         // Under an open umbrella the rain falls behind the buddy.
@@ -107,8 +135,14 @@ enum class Style(
         if (scene.wind != Wind.CALM) add(Layer.Particles(windFx(scene.wind), ParticleSpec.wind(scene, conditions)))
     }
 
-    /** Every asset path this style's asset pack must contain. */
-    fun requiredAssets(): List<String> = buildList {
+    /** Every picture this style's asset pack must contain (not counting [sceneIcons]). */
+    fun requiredAssets(): List<String> = if (wholeScenes) {
+        ScenePicture.entries.map(::scenePicture)
+    } else {
+        layerAssets()
+    }
+
+    private fun layerAssets(): List<String> = buildList {
         Sky.entries.forEach { sky -> TimeOfDay.entries.forEach { time -> add(background(sky, time)) } }
         add(path("body", "base"))
         Expression.entries.forEach { addAll(face(it).assets) }
@@ -128,7 +162,7 @@ enum class Style(
         const val SCARF_FRAMES = 3
         private const val BLINK_EVERY_SECONDS = 3.5
         private const val BLINK_SECONDS = 0.15
-        private val SCENERY = setOf("background", "fx")
+        private val SCENERY = setOf("background", "fx", "scene")
 
         fun fromSlug(slug: String?): Style? = entries.firstOrNull { it.slug == slug }
 

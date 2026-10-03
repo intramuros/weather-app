@@ -203,7 +203,7 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = settings.location
-                        ?.let { stringResource(R.string.location_coordinates, it.latitude, it.longitude) }
+                        ?.let { settings.placeName ?: stringResource(R.string.location_coordinates, it.latitude, it.longitude) }
                         ?: stringResource(R.string.location_default),
                     modifier = Modifier.weight(1f),
                 )
@@ -318,8 +318,10 @@ private fun Credits() {
         withLink(LinkAnnotation.Url("https://open-meteo.com")) { append("Open-Meteo") }
         append(" (KNMI model). Rain radar: ")
         withLink(LinkAnnotation.Url("https://www.buienradar.nl")) { append("Buienradar") }
-        append(". Font: ")
-        withLink(LinkAnnotation.Url("https://github.com/eifetx/Pixelify-Sans")) { append("Pixelify Sans") }
+        append(". Fonts: ")
+        withLink(LinkAnnotation.Url("https://github.com/scfried/soft-type-jersey")) { append("Jersey 10") }
+        append(" and ")
+        withLink(LinkAnnotation.Url("https://github.com/fontworks-fonts/DotGothic16")) { append("DotGothic16") }
         append(" (SIL Open Font License).")
     }
     Text(text, style = MaterialTheme.typography.bodySmall)
