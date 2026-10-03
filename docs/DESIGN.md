@@ -9,7 +9,7 @@ set as the home and/or lock screen wallpaper.
 | Topic | Decision |
 |---|---|
 | Platform | Android first |
-| Art styles | **Pixel art** and **Anime** (made with ChatGPT from the pixel-art scenes: `tools/scenes/anime/PROMPTS.md`; the originals are in `tools/scenes/anime/source/`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw, drawn as layers combined on the device, were tried with placeholder art and dropped.) |
+| Art styles | **Pixel art**, **Anime** (made with ChatGPT from the pixel-art scenes: `tools/scenes/anime/PROMPTS.md`; the originals are in `tools/scenes/anime/source/`) and **Impasto** (thick, loose oil paint, painted from the anime scenes in code by `tools/scenes/impasto.py`, no image generation). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw, drawn as layers combined on the device, were tried with placeholder art and dropped.) |
 | Image production | Finished scenes, one per kind of weather and warmth, bundled with the app (offline, free) |
 | Character | A girl on an Amsterdam canal, the same in every scene |
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
@@ -73,10 +73,11 @@ screen size), so a refresh every 30 minutes doesn't cause flicker.
   real wind blows west (an east wind), they are mirrored. The scenes never
   are: they're composed one way round, and the widget's text positions are
   measured on them.
-- **Frame rate and battery.** Pixel art runs at 12 fps and anime at 24, or 6
+- **Frame rate and battery.** Pixel art runs at 12 fps, anime and impasto at 24, or 6
   in battery saver. Nothing is drawn while the wallpaper is hidden. For pixel
   art, particles snap to the scene's pixel grid, so they look like part of
-  the art; for anime they're smooth, thin lines and dots.
+  the art; for anime they're smooth, thin lines and dots, and for impasto
+  thicker dabs of paint.
 - Applying a live wallpaper always needs the user to confirm it in the system
   wallpaper screen; the app opens that screen for them. While the animated
   wallpaper is active, the "still picture on home screen" option is ignored so
@@ -177,6 +178,16 @@ To add a style: add a `Style` entry (slug, name, frame rate, particle looks),
 make its 30 pictures, and import them. `tools/scenes/anime/PROMPTS.md` is how
 the anime ones are made.
 
+`tools/scenes/impasto.py` makes a style without drawing anything new: it
+repaints each anime picture with brush strokes, broad ones first and then
+smaller ones only where the painting still differs from the scene. Strokes
+follow the scene's contours, their colours lean towards a bold palette per
+scene, and each leaves bristle marks and a ridge of paint lit from the top
+left. Fine brushes are kept for the girl (every scene puts her in the
+middle), so the background stays abstract and her outfit stays readable.
+It is seeded per scene, so a re-run paints the same pictures; re-run it
+after changing an anime picture.
+
 ## Roadmap
 
 1. ✅ Core logic: parsing, scene and picture choice, with tests
@@ -185,7 +196,7 @@ the anime ones are made.
 4. ✅ Live wallpaper: particles, wind direction
 5. ✅ CI: tests, lint and an installable APK on every pull request; `master`
    publishes it
-6. ✅ Art: 30 finished scenes each in pixel art and anime
+6. ✅ Art: 30 finished scenes each in pixel art, anime and impasto
 7. ✅ Widget layout: place, temperature, condition, humidity and wind
 8. Polish: rain splashes, a forecast strip ("rain at 14:45"), pictures for
    the missing weather combinations, a private release key for a store

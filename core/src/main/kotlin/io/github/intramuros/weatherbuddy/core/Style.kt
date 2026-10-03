@@ -23,6 +23,7 @@ enum class Style(
 ) {
     PIXEL_ART("pixel-art", "Pixel art", pixelated = true, fps = 12, hasWidgetIcons = true),
     ANIME("anime", "Anime", pixelated = false, fps = 24, hasWidgetIcons = false),
+    IMPASTO("impasto", "Impasto", pixelated = false, fps = 24, hasWidgetIcons = false),
     ;
 
     /** The picture, as a path in the app's assets. */
@@ -49,6 +50,14 @@ enum class Style(
             ParticleKind.HAILSTONE -> ParticleLook(0xFFEAF4FF.toInt(), 0.5)
             ParticleKind.STREAK -> ParticleLook(0x80FFFFFF.toInt(), 0.3)
             ParticleKind.LEAF -> ParticleLook(0xFF8FBF4A.toInt(), 0.5)
+        }
+        // Short dabs of paint: thicker and more opaque than anime rain.
+        IMPASTO -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0xCCC8DAF0.toInt(), 0.9)
+            ParticleKind.FLAKE -> ParticleLook(0xFFF8F4EA.toInt(), 0.9)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFFE6EEF6.toInt(), 0.9)
+            ParticleKind.STREAK -> ParticleLook(0x99F4EFE4.toInt(), 0.6)
+            ParticleKind.LEAF -> ParticleLook(0xFFD9822B.toInt(), 0.9)
         }
     }
 

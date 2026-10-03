@@ -4,8 +4,8 @@ A cute girl dressed for the weather where you are, shown as an animated
 Android wallpaper (rain, snow and wind move around her), a widget, or a still
 lock screen. The widget also shows the place, temperature, humidity and wind,
 and has a button to refresh it. The app also shows the forecast for the coming
-days. You can pick the art style, **Pixel art** or **Anime**; each has one
-finished picture per kind of weather.
+days. You can pick the art style, **Pixel art**, **Anime** or **Impasto**;
+each has one finished picture per kind of weather.
 
 Weather data comes from [Open-Meteo](https://open-meteo.com) (KNMI HARMONIE
 model) and rain radar from [Buienradar](https://www.buienradar.nl).
@@ -21,7 +21,8 @@ model) and rain radar from [Buienradar](https://www.buienradar.nl).
 - `tools/preview/`: renders animated GIF previews of the live wallpaper.
 - `tools/scenes/`: the pixel-art scene pictures and the script that turns
   them into assets, plus `import_style.py` for another style's pictures and
-  `anime/PROMPTS.md`, the ChatGPT prompts for the anime ones.
+  `anime/PROMPTS.md`, the ChatGPT prompts for the anime ones, and
+  `impasto.py`, which paints the impasto ones from those in code.
 - `docs/DESIGN.md`: decisions, asset spec and roadmap.
 
 ## Install on your phone
