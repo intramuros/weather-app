@@ -7,30 +7,43 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.withScale
 import io.github.intramuros.weatherbuddy.core.RenderPlan
 import io.github.intramuros.weatherbuddy.core.Style
-import androidx.core.graphics.createBitmap
 import java.io.FileNotFoundException
 
 /**
  * Stacks a [RenderPlan]'s layers from `assets/styles/` into one bitmap.
  *
- * All layers share one aspect ratio (9:20). They're scaled to cover the target
- * and cropped around the buddy, so the same art works for a tall wallpaper and
- * a square widget.
+ * Scenery layers (and whole-scene pictures) are square and scaled to cover the
+ * target, cropped around the buddy. The buddy's layers are a 9:20 frame of the
+ * same height, placed at [render]'s `buddyX`: centred on a wallpaper, to the
+ * left on the widget so there is room for [WidgetInfo].
  */
 class Compositor(private val assets: AssetManager) {
-    fun render(plan: RenderPlan, style: Style, width: Int, height: Int): Bitmap {
+    private val overlay by lazy { InfoOverlay(assets) }
+
+    fun render(
+        plan: RenderPlan,
+        style: Style,
+        width: Int,
+        height: Int,
+        buddyX: Float = 0.5f,
+        info: WidgetInfo? = null,
+    ): Bitmap {
         val out = createBitmap(width, height)
         val canvas = Canvas(out)
         val paint = Paint().apply { isFilterBitmap = !style.pixelated }
-        if (plan.mirrored) canvas.scale(-1f, 1f, width / 2f, 0f)
         for (path in plan.stillLayers) {
             val layer = load(path) ?: continue
-            val b = coverBounds(layer.width, layer.height, width, height)
-            canvas.drawBitmap(layer, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), paint)
+            val b = layerBounds(path, layer.width, layer.height, width, height, buddyX)
+            canvas.mirroredIf(plan.mirrored, b) {
+                drawBitmap(layer, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), paint)
+            }
             layer.recycle()
         }
+        if (info != null) overlay.draw(canvas, info, plan, style, width, height)
         return out
     }
 
@@ -43,13 +56,33 @@ class Compositor(private val assets: AssetManager) {
         }
 
     /** Where a layer lands on the target, in target pixels. */
-    internal data class Bounds(val left: Float, val top: Float, val width: Float, val height: Float)
+    internal data class Bounds(val left: Float, val top: Float, val width: Float, val height: Float) {
+        val centerX: Float get() = left + width / 2
+    }
 
     internal companion object {
         private const val TAG = "Compositor"
 
-        /** Vertical position of the buddy's middle in the source art, as a fraction of its height. */
+        /** Vertical position of the buddy's middle in the art, as a fraction of its height. */
         const val FOCUS_Y = 0.67f
+
+        /** Where the buddy stands on the widget, as a fraction of its width. */
+        const val WIDGET_BUDDY_X = 0.32f
+
+        fun layerBounds(path: String, srcW: Int, srcH: Int, dstW: Int, dstH: Int, buddyX: Float): Bounds =
+            if (Style.isScenery(path)) {
+                coverBounds(srcW, srcH, dstW, dstH)
+            } else {
+                buddyBounds(srcW, srcH, dstW, dstH, buddyX)
+            }
+
+        /**
+         * Draws [block] flipped around the middle of [bounds] when [mirror] is set. Each layer
+         * flips in place, so the buddy stays where she stands and text drawn later reads normally.
+         */
+        inline fun Canvas.mirroredIf(mirror: Boolean, bounds: Bounds, block: Canvas.() -> Unit) {
+            if (mirror) withScale(-1f, 1f, bounds.centerX, 0f) { block() } else block()
+        }
 
         /**
          * Scales the source to cover the target and centres it horizontally. Vertically
@@ -61,6 +94,16 @@ class Compositor(private val assets: AssetManager) {
             val h = srcH * scale
             val top = (dstH / 2f - FOCUS_Y * h).coerceIn(dstH - h, 0f)
             return Bounds((dstW - w) / 2, top, w, h)
+        }
+
+        /**
+         * The buddy's frame at the same scale and height as the square scene it stands
+         * in, with its middle at [buddyX] of the target's width.
+         */
+        fun buddyBounds(srcW: Int, srcH: Int, dstW: Int, dstH: Int, buddyX: Float): Bounds {
+            val scene = coverBounds(srcH, srcH, dstW, dstH)
+            val w = scene.height * srcW / srcH
+            return Bounds(dstW * buddyX - w / 2, scene.top, w, scene.height)
         }
     }
 }

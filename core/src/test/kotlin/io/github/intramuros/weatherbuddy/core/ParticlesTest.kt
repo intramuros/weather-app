@@ -55,7 +55,7 @@ class ParticlesTest {
             assertEquals(pa, positions(b, t))
             assertEquals(spec.count, pa.size)
             for ((x, y) in pa) {
-                assertTrue(x >= -40 && x < ArtCanvas.WIDTH + 40, "x=$x at $t")
+                assertTrue(x >= -40 && x < ArtCanvas.SCENE_SIZE + 40, "x=$x at $t")
                 assertTrue(y >= -spec.size && y < ArtCanvas.GROUND, "y=$y at $t")
             }
         }

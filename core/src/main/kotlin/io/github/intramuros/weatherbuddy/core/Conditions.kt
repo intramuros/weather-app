@@ -10,13 +10,18 @@ data class Conditions(
     val apparentTemperatureC: Double,
     val windSpeedKmh: Double,
     val windGustsKmh: Double,
-    /** Where the wind comes from, in degrees (meteorological: 270 = from the west). */
+    /**
+     * Where the wind blows from, in degrees clockwise from north (270 = from the west).
+     * `null` in snapshots saved before it was fetched.
+     */
     val windDirectionDeg: Double? = null,
     /** `null` when the model does not provide UV (e.g. KNMI HARMONIE). */
     val uvIndex: Double?,
     /** WMO weather interpretation code as used by Open-Meteo. */
     val weatherCode: Int,
     val isDay: Boolean,
+    /** Relative humidity, 0–100. `null` in snapshots saved before it was fetched. */
+    val humidityPercent: Double? = null,
     /** Precipitation over the preceding interval, in mm. */
     val precipitationMm: Double,
     /** Radar-based rain forecast for the next ~2 hours (Buienradar), in time order. */

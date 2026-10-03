@@ -4,14 +4,17 @@ import android.app.WallpaperManager
 import android.content.Context
 import android.util.Log
 import androidx.glance.appwidget.updateAll
+import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.core.RenderPlan
 import io.github.intramuros.weatherbuddy.core.WeatherParseException
 import io.github.intramuros.weatherbuddy.data.Location
+import io.github.intramuros.weatherbuddy.data.Settings
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherClient
 import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import io.github.intramuros.weatherbuddy.render.Compositor
+import io.github.intramuros.weatherbuddy.render.WidgetInfo
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import io.github.intramuros.weatherbuddy.widget.WeatherWidget
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +37,9 @@ sealed interface RefreshResult {
  */
 object Refresher {
     private const val TAG = "Refresher"
-    private const val WIDGET_SIZE = 360
+
+    /** The widget picture is square, like the scenes; the widget fits it to its shape. */
+    private const val WIDGET_SIZE = 600
     const val PREVIEW_WIDTH = 540
     const val PREVIEW_HEIGHT = 1200
 
@@ -66,8 +71,9 @@ object Refresher {
 
         val plan = RenderPlan.plan(snapshot.conditions, settings.style)
         val compositor = Compositor(app.assets)
+        val info = WidgetInfo.from(app, snapshot.conditions, plan.scene, placeName(app, settings))
         withContext(Dispatchers.Default) {
-            val widget = compositor.render(plan, settings.style, WIDGET_SIZE, WIDGET_SIZE)
+            val widget = compositor.render(plan, settings.style, WIDGET_SIZE, WIDGET_SIZE, Compositor.WIDGET_BUDDY_X, info)
             val preview = compositor.render(plan, settings.style, PREVIEW_WIDTH, PREVIEW_HEIGHT)
             withContext(Dispatchers.IO) { store.saveImages(widget, preview) }
         }
@@ -97,4 +103,8 @@ object Refresher {
 
         RefreshResult.Ok(snapshot, stale)
     }
+
+    /** The name shown on the widget: the saved place, or the default location's. */
+    fun placeName(context: Context, settings: Settings): String? =
+        if (settings.location == null) context.getString(R.string.place_default) else settings.placeName
 }

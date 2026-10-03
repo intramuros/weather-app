@@ -16,6 +16,8 @@ kotlin {
 
 dependencies {
     implementation(project(":core"))
+    // The finished pixel-art scenes are WebP, which ImageIO can't read on its own.
+    runtimeOnly(libs.imageio.webp)
 }
 
 application {

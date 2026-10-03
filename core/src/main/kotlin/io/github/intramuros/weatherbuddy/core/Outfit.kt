@@ -68,13 +68,13 @@ data class Outfit(
          */
         fun dress(c: Conditions, scene: Scene): Outfit {
             val feels = c.apparentTemperatureC
-            var (top, bottom, footwear, outerwear) = when {
-                feels >= 25 -> Clothes(Top.TANK_TOP, Bottom.SHORTS, Footwear.SANDALS, null)
-                feels >= 20 -> Clothes(Top.T_SHIRT, Bottom.SHORTS, Footwear.SNEAKERS, null)
-                feels >= 15 -> Clothes(Top.LONG_SLEEVE, Bottom.TROUSERS, Footwear.SNEAKERS, null)
-                feels >= 10 -> Clothes(Top.SWEATER, Bottom.TROUSERS, Footwear.SNEAKERS, Outerwear.LIGHT_JACKET)
-                feels >= 3 -> Clothes(Top.SWEATER, Bottom.TROUSERS, Footwear.BOOTS, Outerwear.COAT)
-                else -> Clothes(Top.SWEATER, Bottom.TROUSERS, Footwear.BOOTS, Outerwear.PUFFER_COAT)
+            var (top, bottom, footwear, outerwear) = when (Warmth.of(feels)) {
+                Warmth.HOT -> Clothes(Top.TANK_TOP, Bottom.SHORTS, Footwear.SANDALS, null)
+                Warmth.WARM -> Clothes(Top.T_SHIRT, Bottom.SHORTS, Footwear.SNEAKERS, null)
+                Warmth.MILD -> Clothes(Top.LONG_SLEEVE, Bottom.TROUSERS, Footwear.SNEAKERS, null)
+                Warmth.COOL -> Clothes(Top.SWEATER, Bottom.TROUSERS, Footwear.SNEAKERS, Outerwear.LIGHT_JACKET)
+                Warmth.COLD -> Clothes(Top.SWEATER, Bottom.TROUSERS, Footwear.BOOTS, Outerwear.COAT)
+                Warmth.FREEZING -> Clothes(Top.SWEATER, Bottom.TROUSERS, Footwear.BOOTS, Outerwear.PUFFER_COAT)
             }
 
             val acc = sortedSetOf<Accessory>()

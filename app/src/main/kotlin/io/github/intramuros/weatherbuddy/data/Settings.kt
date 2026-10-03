@@ -31,6 +31,8 @@ data class Settings(
     val wallpaperLock: Boolean,
     /** `null` until the user shares their location; [Location.DEFAULT] is used meanwhile. */
     val location: Location?,
+    /** Town or city of [location], if the platform could name it. */
+    val placeName: String?,
     /** Identifies the picture last set as wallpaper, to avoid re-setting an identical one. */
     val wallpaperKey: String?,
 )
@@ -48,6 +50,7 @@ class SettingsRepository(context: Context) {
             wallpaperHome = prefs[WALLPAPER_HOME] ?: false,
             wallpaperLock = prefs[WALLPAPER_LOCK] ?: false,
             location = if (lat != null && lon != null) Location(lat, lon) else null,
+            placeName = prefs[PLACE_NAME],
             wallpaperKey = prefs[WALLPAPER_KEY],
         )
     }
@@ -60,9 +63,10 @@ class SettingsRepository(context: Context) {
 
     suspend fun setWallpaperLock(enabled: Boolean) = store.edit { it[WALLPAPER_LOCK] = enabled }
 
-    suspend fun setLocation(location: Location) = store.edit {
+    suspend fun setLocation(location: Location, placeName: String?) = store.edit {
         it[LATITUDE] = location.latitude
         it[LONGITUDE] = location.longitude
+        if (placeName != null) it[PLACE_NAME] = placeName else it.remove(PLACE_NAME)
     }
 
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }
@@ -74,5 +78,6 @@ class SettingsRepository(context: Context) {
         val LATITUDE = doublePreferencesKey("latitude")
         val LONGITUDE = doublePreferencesKey("longitude")
         val WALLPAPER_KEY = stringPreferencesKey("wallpaper_key")
+        val PLACE_NAME = stringPreferencesKey("place_name")
     }
 }

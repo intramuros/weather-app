@@ -4,11 +4,16 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.location.Geocoder
 import android.location.LocationManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
+import java.util.Locale
 import kotlin.coroutines.resume
 import android.location.Location as AndroidLocation
 
@@ -48,5 +53,39 @@ object LocationProvider {
             .mapNotNull { manager.getLastKnownLocation(it) }
             .maxByOrNull { it.time }
         return location?.let { Location.rounded(it.latitude, it.longitude) }
+    }
+
+    /** The town or city at [location], for the widget, or `null` if the platform can't tell. */
+    suspend fun placeName(context: Context, location: Location): String? {
+        if (!Geocoder.isPresent()) return null
+        val geocoder = Geocoder(context, Locale.getDefault())
+        val address = withTimeoutOrNull(10_000) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                suspendCancellableCoroutine { cont ->
+                    geocoder.getFromLocation(
+                        location.latitude,
+                        location.longitude,
+                        1,
+                        object : Geocoder.GeocodeListener {
+                            override fun onGeocode(addresses: MutableList<android.location.Address>) {
+                                cont.resume(addresses.firstOrNull())
+                            }
+
+                            override fun onError(errorMessage: String?) = cont.resume(null)
+                        },
+                    )
+                }
+            } else {
+                withContext(Dispatchers.IO) {
+                    try {
+                        @Suppress("DEPRECATION")
+                        geocoder.getFromLocation(location.latitude, location.longitude, 1)?.firstOrNull()
+                    } catch (_: IOException) {
+                        null
+                    }
+                }
+            }
+        }
+        return address?.let { it.locality ?: it.subAdminArea }
     }
 }
