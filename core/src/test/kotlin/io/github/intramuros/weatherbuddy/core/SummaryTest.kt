@@ -64,7 +64,14 @@ class SummaryTest {
 
     @Test
     fun picturesMatchTheWeather() {
+        assertEquals(ScenePicture.CLEAR_HOT, picture(0, 30.0))
         assertEquals(ScenePicture.CLEAR_WARM, picture(0, 22.0))
+        assertEquals(ScenePicture.CLEAR_NIGHT_COLD, picture(0, 6.0, night = true))
+        assertEquals(ScenePicture.CLEAR_NIGHT_COLD, picture(2, 6.0, night = true))
+        assertEquals(ScenePicture.PARTLY_CLOUDY_MILD, picture(2, 17.0))
+        assertEquals(ScenePicture.CLOUDY_COOL, picture(3, 12.0))
+        assertEquals(ScenePicture.FOG_COOL, picture(45, 11.0))
+        assertEquals(ScenePicture.RAIN_MILD, picture(63, 17.0))
         assertEquals(ScenePicture.CLOUDY_COLD, picture(3, 6.0))
         assertEquals(ScenePicture.WINDY_COOL, picture(3, 11.0, gusts = 45.0))
         assertEquals(ScenePicture.RAIN_COLD, picture(63, 6.0))
@@ -78,8 +85,10 @@ class SummaryTest {
     fun clothesWinOverTheSky() {
         // A cold, sunny day: a coat under a few clouds, not a summer dress under the sun.
         assertEquals(ScenePicture.PARTLY_CLOUDY_COLD, picture(0, 4.0))
-        // A warm, cloudy day: the summer dress rather than a winter coat.
+        // A warm, cloudy day: the summer dress rather than a coat.
         assertEquals(ScenePicture.CLEAR_WARM, picture(3, 23.0))
+        // No sun at night, no stars by day.
+        assertEquals(null, picture(0, 6.0).time?.takeIf { it == TimeOfDay.NIGHT })
         // Snow is only ever shown as snow.
         assertEquals(SceneKind.SNOW, picture(71, 20.0).kind)
     }
@@ -87,8 +96,8 @@ class SummaryTest {
     @Test
     fun everyPictureCanBeChosen() {
         val chosen = buildSet {
-            for (code in listOf(0, 2, 3, 45, 63, 71, 95)) for (feels in -5..30 step 1) for (gusts in listOf(10.0, 45.0)) {
-                add(picture(code, feels.toDouble(), gusts))
+            for (code in listOf(0, 2, 3, 45, 63, 71, 95)) for (feels in -5..30) for (gusts in listOf(10.0, 45.0)) {
+                for (night in listOf(false, true)) add(picture(code, feels.toDouble(), gusts, night))
             }
         }
         assertEquals(ScenePicture.entries.toSet(), chosen)

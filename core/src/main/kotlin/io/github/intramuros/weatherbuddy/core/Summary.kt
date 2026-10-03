@@ -118,13 +118,19 @@ enum class ScenePicture(
     val slug: String,
     val kind: SceneKind,
     val warmth: Warmth,
-    /** A bright daytime sky, which looks wrong at night. */
-    val daylight: Boolean = false,
+    /** Only right at this time of day (a sun, a starry sky); `null` for dusky skies that suit both. */
+    val time: TimeOfDay? = null,
 ) {
-    CLEAR_WARM("clear-warm", SceneKind.CLEAR, Warmth.WARM, daylight = true),
-    PARTLY_CLOUDY_COLD("partly-cloudy-cold", SceneKind.PARTLY_CLOUDY, Warmth.COLD),
+    CLEAR_HOT("clear-hot", SceneKind.CLEAR, Warmth.HOT, TimeOfDay.DAY),
+    CLEAR_WARM("clear-warm", SceneKind.CLEAR, Warmth.WARM, TimeOfDay.DAY),
+    CLEAR_NIGHT_COLD("clear-night-cold", SceneKind.CLEAR, Warmth.COLD, TimeOfDay.NIGHT),
+    PARTLY_CLOUDY_MILD("partly-cloudy-mild", SceneKind.PARTLY_CLOUDY, Warmth.MILD, TimeOfDay.DAY),
+    PARTLY_CLOUDY_COLD("partly-cloudy-cold", SceneKind.PARTLY_CLOUDY, Warmth.COLD, TimeOfDay.DAY),
+    CLOUDY_COOL("cloudy-cool", SceneKind.CLOUDY, Warmth.COOL),
     CLOUDY_COLD("cloudy-cold", SceneKind.CLOUDY, Warmth.COLD),
+    FOG_COOL("fog-cool", SceneKind.FOG, Warmth.COOL),
     WINDY_COOL("windy-cool", SceneKind.WINDY, Warmth.COOL),
+    RAIN_MILD("rain-mild", SceneKind.RAIN, Warmth.MILD),
     RAIN_COLD("rain-cold", SceneKind.RAIN, Warmth.COLD),
     STORM_COOL("storm-cool", SceneKind.STORM, Warmth.COOL),
     STORM_COLD("storm-cold", SceneKind.STORM, Warmth.COLD),
@@ -135,21 +141,22 @@ enum class ScenePicture(
     companion object {
         /** Each band of warmth between the outfit and the weather costs more than a slightly different sky. */
         private const val WARMTH_WEIGHT = 3
-        private const val NIGHT_PENALTY = 4
+        private const val WRONG_TIME_PENALTY = 4
 
         /**
          * The picture whose outfit best fits how warm it feels, among pictures of the
          * same or a similar sky. Clothes matter more than the sky: a cold, clear day
-         * gets a cloudy picture with a coat, not a sunny one with a dress.
+         * gets a cloudy picture with a coat, not a sunny one with a dress. A sky for
+         * the wrong time of day (sun at night, stars by day) counts against a picture.
          */
         fun choose(conditions: Conditions, scene: Scene): ScenePicture {
             val kind = SceneKind.of(Condition.of(scene))
             val warmth = Warmth.of(conditions.apparentTemperatureC)
-            val night = scene.timeOfDay == TimeOfDay.NIGHT
             return entries.minBy { picture ->
+                val wrongTime = picture.time != null && picture.time != scene.timeOfDay
                 WARMTH_WEIGHT * abs(picture.warmth.ordinal - warmth.ordinal) +
                     kind.distanceTo(picture.kind) +
-                    if (night && picture.daylight) NIGHT_PENALTY else 0
+                    if (wrongTime) WRONG_TIME_PENALTY else 0
             }
         }
     }
