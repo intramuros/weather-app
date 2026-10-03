@@ -69,18 +69,28 @@ data class WidgetInfo(
  * below it room for only [LABEL_SCALE].
  */
 internal class InfoOverlay(private val assets: AssetManager) {
-    /** A pixel font with where its capitals sit, as fractions of the font size. */
-    private class PixelFont(val typeface: Typeface, val capHeight: Float, val belowBaseline: Float, val fakeBold: Boolean = false)
+    /**
+     * A pixel font with where its capitals sit, as fractions of the font size, and
+     * how far down and right its hard shadow falls (none if 0).
+     */
+    private class PixelFont(
+        val typeface: Typeface,
+        val capHeight: Float,
+        val belowBaseline: Float,
+        val fakeBold: Boolean = false,
+        val shadowOffset: Float = 0f,
+    )
 
     /** Chunky, for the temperature. */
     private val bigFont by lazy { PixelFont(Typeface.createFromAsset(assets, "fonts/Jersey10.ttf"), 0.535f, 0f) }
 
     /**
      * For everything else; its glyphs sit one font pixel below the baseline. Thickened,
-     * since it's thinner than the lettering in the artwork.
+     * since it's thinner than the lettering in the artwork, and shadowed one stroke
+     * width away, to stand out from a pale daytime sky.
      */
     private val smallFont by lazy {
-        PixelFont(Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"), 0.815f, 0.0275f, fakeBold = true)
+        PixelFont(Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"), 0.815f, 0.0275f, fakeBold = true, shadowOffset = 0.0725f)
     }
 
     fun draw(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: Style, width: Int, height: Int) {
@@ -115,8 +125,14 @@ internal class InfoOverlay(private val assets: AssetManager) {
             val left = x(xUnits)
             val capPixels = capUnits / SceneLayout.UNITS * b.height
             paint.fitText(value, capPixels / (font.capHeight + font.belowBaseline), maxX - left)
+            val baseline = y(bottomUnits) - font.belowBaseline * paint.textSize
+            if (font.shadowOffset > 0f) {
+                val offset = font.shadowOffset * paint.textSize
+                paint.color = SCENE_SHADOW
+                canvas.drawText(value, left + offset, baseline + offset, paint)
+            }
             paint.color = colour
-            canvas.drawText(value, left, y(bottomUnits) - font.belowBaseline * paint.textSize, paint)
+            canvas.drawText(value, left, baseline, paint)
         }
 
         with(layout) {
@@ -181,6 +197,7 @@ internal class InfoOverlay(private val assets: AssetManager) {
         val SKY_SHADE = 0x59000000
         val SCENE_TEXT = 0xFFF0F2F8.toInt()
         val SCENE_LABEL = 0xFFBCCAEA.toInt()
+        val SCENE_SHADOW = 0xAA141A38.toInt()
 
         /** How much larger than in the mock-ups the condition under the temperature is. */
         const val LABEL_SCALE = 1.25f
