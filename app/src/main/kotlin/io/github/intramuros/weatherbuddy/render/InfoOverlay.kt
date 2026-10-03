@@ -70,8 +70,9 @@ data class WidgetInfo(
  */
 internal class InfoOverlay(private val assets: AssetManager) {
     /**
-     * A pixel font with where its capitals sit, as fractions of the font size, and
-     * how far down and right its hard shadow falls (none if 0).
+     * A pixel font with where its capitals sit, how far down and right its hard
+     * shadow falls (none if 0) and the extra space before a `%`, all as fractions
+     * of the font size.
      */
     private class PixelFont(
         val typeface: Typeface,
@@ -79,6 +80,7 @@ internal class InfoOverlay(private val assets: AssetManager) {
         val belowBaseline: Float,
         val fakeBold: Boolean = false,
         val shadowOffset: Float = 0f,
+        val percentGap: Float = 0f,
     )
 
     /** Chunky, for the temperature. */
@@ -87,10 +89,18 @@ internal class InfoOverlay(private val assets: AssetManager) {
     /**
      * For everything else; its glyphs sit one font pixel below the baseline. Thickened,
      * since it's thinner than the lettering in the artwork, and shadowed one stroke
-     * width away, to stand out from a pale daytime sky.
+     * width away, to stand out from a pale daytime sky. Its `%` fills its whole cell,
+     * so it would touch the digit before it.
      */
     private val smallFont by lazy {
-        PixelFont(Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"), 0.815f, 0.0275f, fakeBold = true, shadowOffset = 0.0725f)
+        PixelFont(
+            Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"),
+            capHeight = 0.815f,
+            belowBaseline = 0.0275f,
+            fakeBold = true,
+            shadowOffset = 0.0725f,
+            percentGap = 0.08f,
+        )
     }
 
     fun draw(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: Style, width: Int, height: Int) {
@@ -124,15 +134,17 @@ internal class InfoOverlay(private val assets: AssetManager) {
             paint.isFakeBoldText = font.fakeBold
             val left = x(xUnits)
             val capPixels = capUnits / SceneLayout.UNITS * b.height
-            paint.fitText(value, capPixels / (font.capHeight + font.belowBaseline), maxX - left)
+            val gaps = value.count { it == '%' } * font.percentGap
+            paint.fitText(value, capPixels / (font.capHeight + font.belowBaseline), maxX - left, gaps)
             val baseline = y(bottomUnits) - font.belowBaseline * paint.textSize
+            val percentGap = font.percentGap * paint.textSize
             if (font.shadowOffset > 0f) {
                 val offset = font.shadowOffset * paint.textSize
                 paint.color = SCENE_SHADOW
-                canvas.drawText(value, left + offset, baseline + offset, paint)
+                canvas.drawSpaced(value, left + offset, baseline + offset, percentGap, paint)
             }
             paint.color = colour
-            canvas.drawText(value, left, baseline, paint)
+            canvas.drawSpaced(value, left, baseline, percentGap, paint)
         }
 
         with(layout) {
@@ -205,11 +217,29 @@ internal class InfoOverlay(private val assets: AssetManager) {
         /** How much larger than in the mock-ups the place, humidity and wind are, and in the sky the condition. */
         const val VALUES_SCALE = 1.5f
 
-        /** Sets the text size, shrinking it until [text] fits [maxWidth]. */
-        fun Paint.fitText(text: String, size: Float, maxWidth: Float) {
+        /**
+         * Sets the text size, shrinking it until [text] fits [maxWidth], with
+         * [extraSpace] (a fraction of the text size) added to its width.
+         */
+        fun Paint.fitText(text: String, size: Float, maxWidth: Float, extraSpace: Float = 0f) {
             textSize = size
-            val measured = measureText(text)
+            val measured = measureText(text) + extraSpace * size
             if (measured > maxWidth && measured > 0f) textSize = (size * maxWidth / measured).coerceAtLeast(1f)
+        }
+
+        /** Draws [text] with [percentGap] pixels of extra space before each `%`. */
+        fun Canvas.drawSpaced(text: String, x: Float, y: Float, percentGap: Float, paint: Paint) {
+            if (percentGap <= 0f) return drawText(text, x, y, paint)
+            var cursor = x
+            text.split('%').forEachIndexed { i, part ->
+                if (i > 0) {
+                    cursor += percentGap
+                    drawText("%", cursor, y, paint)
+                    cursor += paint.measureText("%")
+                }
+                drawText(part, cursor, y, paint)
+                cursor += paint.measureText(part)
+            }
         }
     }
 }
