@@ -2,6 +2,8 @@ name: Android
 
 on:
   push:
+    branches: [master]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -37,8 +39,10 @@ jobs:
           name: weather-buddy-${{ github.run_number }}
           path: weather-buddy.apk
 
+      # Only master publishes; a pull request's APK is in the run's artifacts.
       # Always available at .../releases/latest/download/weather-buddy.apk
       - name: Publish as the latest release
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

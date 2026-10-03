@@ -2,6 +2,7 @@ package io.github.intramuros.weatherbuddy.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class StyleTest {
@@ -36,9 +37,9 @@ class StyleTest {
             val required = style.requiredAssets().toSet()
             val used = mutableSetOf<String>()
             for (c in grid) {
-                for (layer in RenderPlan.plan(c, style).layers) {
-                    assertTrue(layer in required, "$layer not in asset list")
-                    used += layer
+                for (asset in RenderPlan.plan(c, style).layers.flatMap { it.assets }) {
+                    assertTrue(asset in required, "$asset not in asset list")
+                    used += asset
                 }
             }
             assertEquals(emptyList(), (required - used).sorted(), "never drawn for $style")
@@ -47,20 +48,31 @@ class StyleTest {
 
     @Test
     fun requiredAssetCount() {
-        assertEquals(45, Style.UKIYO_E.requiredAssets().size)
+        // 45 still images + 9 hair frames + 5 blinks + 3 windy-scarf frames.
+        assertEquals(62, Style.UKIYO_E.requiredAssets().size)
         assertEquals(ScenePicture.entries.size, Style.PIXEL_ART.requiredAssets().size)
     }
 
     @Test
     fun wholeSceneStylesDrawOnePictureMatchingTheWeather() {
         val snow = RenderPlan.plan(conditions(71, -2.0, 10.0), Style.PIXEL_ART)
-        assertEquals(listOf("pixel-art/scene/snow-freezing.webp"), snow.layers)
+        assertEquals(listOf("pixel-art/scene/snow-freezing.webp"), snow.stillLayers)
         assertEquals(ScenePicture.SNOW_FREEZING, snow.picture)
         val storm = conditions(95, 14.0, 40.0)
-        assertEquals(listOf("pixel-art/scene/storm-cool.webp"), RenderPlan.plan(storm, Style.PIXEL_ART).layers)
+        assertEquals(listOf("pixel-art/scene/storm-cool.webp"), RenderPlan.plan(storm, Style.PIXEL_ART).stillLayers)
         assertEquals("pixel-art/scene/storm-cool-icons.webp", Style.PIXEL_ART.sceneIcons(ScenePicture.STORM_COOL))
         assertTrue(Style.isScenery("pixel-art/scene/storm-cool.webp"))
         assertEquals(null, RenderPlan.plan(storm, Style.UKIYO_E).picture)
+    }
+
+    @Test
+    fun wholeScenesGetMovingWeatherOnTop() {
+        val layers = RenderPlan.plan(conditions(63, 8.0, 45.0), Style.PIXEL_ART).layers
+        assertTrue(layers.first() is Layer.Sprite)
+        val particles = layers.filterIsInstance<Layer.Particles>()
+        assertEquals(listOf(ParticleKind.DROP, ParticleKind.STREAK), particles.flatMap { p -> p.specs.map { it.kind } })
+        // The finished picture already shows its weather, so a still picture adds nothing.
+        assertTrue(particles.all { it.still == null })
     }
 
     @Test
@@ -82,10 +94,45 @@ class StyleTest {
                 "delfts-blauw/bottom/trousers.png",
                 "delfts-blauw/footwear/sneakers.png",
                 "delfts-blauw/top/sweater.png",
+                "delfts-blauw/hair/calm.png",
                 "delfts-blauw/outerwear/light-jacket.png",
                 "delfts-blauw/accessory/umbrella-open.png",
             ),
-            RenderPlan.plan(c, Style.DELFTS_BLAUW).layers,
+            RenderPlan.plan(c, Style.DELFTS_BLAUW).stillLayers,
         )
+    }
+
+    @Test
+    fun windAnimatesHairAndScarf() {
+        val plan = RenderPlan.plan(conditions(3, 5.0, 45.0), Style.UKIYO_E)
+        val animated = plan.layers.filterIsInstance<Layer.Sprite>().filter { it.isAnimated }.map { it.still }
+        assertEquals(
+            listOf(
+                "ukiyo-e/face/happy.png",
+                "ukiyo-e/hair/breezy-0.png",
+                "ukiyo-e/accessory/scarf-wind-0.png",
+            ),
+            animated,
+        )
+        val particles = plan.layers.filterIsInstance<Layer.Particles>()
+        assertEquals(listOf("ukiyo-e/fx/wind-breezy.png"), particles.map { it.still })
+    }
+
+    @Test
+    fun eastWindMirrorsLayeredArt() {
+        val windy = conditions(3, 12.0, 45.0)
+        val east = RenderPlan.plan(windy.copy(windDirectionDeg = 90.0), Style.UKIYO_E)
+        assertTrue(east.mirrored && east.particlesMirrored)
+        assertFalse(RenderPlan.plan(windy.copy(windDirectionDeg = 240.0), Style.UKIYO_E).mirrored)
+        assertFalse(RenderPlan.plan(windy.copy(windDirectionDeg = null), Style.UKIYO_E).mirrored)
+        // No visible wind, nothing to follow.
+        assertFalse(RenderPlan.plan(conditions(3, 12.0, 10.0).copy(windDirectionDeg = 90.0), Style.UKIYO_E).mirrored)
+    }
+
+    @Test
+    fun finishedPicturesStayPutWhileTheirWeatherFollowsTheWind() {
+        val plan = RenderPlan.plan(conditions(63, 8.0, 45.0).copy(windDirectionDeg = 90.0), Style.PIXEL_ART)
+        assertFalse(plan.mirrored)
+        assertTrue(plan.particlesMirrored)
     }
 }

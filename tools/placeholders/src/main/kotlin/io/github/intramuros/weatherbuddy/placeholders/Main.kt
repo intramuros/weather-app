@@ -97,6 +97,7 @@ private class Painter(private val style: Style) {
             "bottom" -> bottom(slug)
             "footwear" -> footwear(slug)
             "top" -> top(slug)
+            "hair" -> hair(slug)
             "outerwear" -> outerwear(slug)
             "accessory" -> accessory(slug)
             "fx" -> fx(slug)
@@ -197,18 +198,20 @@ private class Painter(private val style: Style) {
         fill(rect(69.0, 222.0, 10.0, 34.0), p.skin)
         fill(rect(52.0, 182.0, 31.0, 42.0), p.skin) // torso
         fill(oval(67.5, 165.0, 17.0), p.skin) // head
-        fill(Arc2D.Double(50.5, 147.0, 34.0, 22.0, 0.0, 180.0, Arc2D.CHORD), p.dark) // hair
     }
 
-    private fun face(slug: String) {
+    private fun face(name: String) {
+        val blink = name.endsWith("-blink")
+        val slug = name.removeSuffix("-blink")
         val eyeY = 165.0
         val c = p.outline
-        when (slug) {
-            "sleepy" -> { line(58.0, eyeY, 64.0, eyeY, c); line(71.0, eyeY, 77.0, eyeY, c) }
-            "windswept" -> {
-                line(58.0, eyeY - 2, 64.0, eyeY, c); line(77.0, eyeY - 2, 71.0, eyeY, c)
-                for (i in 0..2) line(52.0, 152.0 + i * 4, 40.0, 150.0 + i * 5, p.dark)
+        when {
+            blink -> {
+                g.draw(Arc2D.Double(58.0, eyeY - 2, 6.0, 4.0, 180.0, 180.0, Arc2D.OPEN))
+                g.draw(Arc2D.Double(71.0, eyeY - 2, 6.0, 4.0, 180.0, 180.0, Arc2D.OPEN))
             }
+            slug == "sleepy" -> { line(58.0, eyeY, 64.0, eyeY, c); line(71.0, eyeY, 77.0, eyeY, c) }
+            slug == "windswept" -> { line(58.0, eyeY - 2, 64.0, eyeY, c); line(77.0, eyeY - 2, 71.0, eyeY, c) }
             else -> { fill(oval(61.0, eyeY, 2.0), c, false); fill(oval(74.0, eyeY, 2.0), c, false) }
         }
         val mouth = when (slug) {
@@ -227,6 +230,42 @@ private class Painter(private val style: Style) {
             "shivering" -> { fill(oval(57.0, 171.0, 3.0, 2.0), p.secondary, false); fill(oval(78.0, 171.0, 3.0, 2.0), p.secondary, false) }
             "sleepy" -> { line(88.0, 140.0, 94.0, 140.0); line(94.0, 140.0, 88.0, 146.0); line(88.0, 146.0, 94.0, 146.0) }
             "soggy" -> fill(oval(80.0, 168.0, 2.0, 3.0), p.water)
+        }
+    }
+
+    /**
+     * Her hair: a cap with a fringe and two long locks. Wind bends the locks to
+     * the right (the app mirrors the picture for an east wind); each frame bends
+     * them a different amount, so the loop reads as hair blowing.
+     */
+    private fun hair(slug: String) {
+        val (bend, strands) = when (slug) {
+            "calm" -> 0.0 to 0
+            "breezy-0" -> 3.0 to 0
+            "breezy-1" -> 6.0 to 0
+            "breezy-2" -> 8.0 to 0
+            "breezy-3" -> 5.0 to 0
+            "stormy-0" -> 12.0 to 2
+            "stormy-1" -> 18.0 to 3
+            "stormy-2" -> 22.0 to 3
+            "stormy-3" -> 16.0 to 2
+            else -> error("no placeholder for hair $slug")
+        }
+        fun lock(rootX: Double, outward: Double) = Path2D.Double().apply {
+            moveTo(rootX, 156.0)
+            quadTo(rootX + outward * 4 + bend * 0.3, 178.0, rootX + outward * 2 + bend, 200.0)
+            lineTo(rootX + outward * 2 + bend + 7, 199.0)
+            quadTo(rootX + outward * 4 + bend * 0.3 + 7, 176.0, rootX + 7 * (1 - outward) / 2 + 3, 156.0)
+            closePath()
+        }
+        fill(lock(46.0, -1.0), p.dark)
+        fill(lock(82.0, 1.0), p.dark)
+        fill(Arc2D.Double(50.0, 146.0, 35.0, 24.0, 0.0, 180.0, Arc2D.CHORD), p.dark) // cap
+        fill(Arc2D.Double(52.0, 151.0, 22.0, 12.0, 180.0, 180.0, Arc2D.CHORD), p.dark, outlined = false) // fringe
+        repeat(strands) { i ->
+            val y = 150.0 + i * 5
+            g.color = p.dark
+            g.draw(Arc2D.Double(80.0, y, bend + 10, 8.0, 90.0, -120.0, Arc2D.OPEN))
         }
     }
 
@@ -294,6 +333,18 @@ private class Painter(private val style: Style) {
     private fun accessory(slug: String) {
         when (slug) {
             "scarf" -> { fill(rect(53.0, 178.0, 29.0, 7.0), p.primary); fill(rect(72.0, 183.0, 7.0, 22.0), p.primary) }
+            "scarf-wind-0", "scarf-wind-1", "scarf-wind-2" -> {
+                val wave = (slug.last().digitToInt() - 1) * 3.0
+                val tail = Path2D.Double().apply {
+                    moveTo(78.0, 180.0)
+                    quadTo(90.0, 178.0 - wave, 104.0, 182.0 + wave)
+                    lineTo(103.0, 188.0 + wave)
+                    quadTo(90.0, 185.0 - wave, 78.0, 186.0)
+                    closePath()
+                }
+                fill(tail, p.primary)
+                fill(rect(53.0, 178.0, 29.0, 7.0), p.primary)
+            }
             "gloves" -> { fill(oval(48.0, 220.0, 5.0), p.secondary); fill(oval(87.0, 220.0, 5.0), p.secondary) }
             "sunglasses" -> {
                 fill(rect(56.0, 161.0, 10.0, 7.0), p.outline, false); fill(rect(69.0, 161.0, 10.0, 7.0), p.outline, false)

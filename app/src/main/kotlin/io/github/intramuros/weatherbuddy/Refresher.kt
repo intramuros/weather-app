@@ -15,6 +15,7 @@ import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import io.github.intramuros.weatherbuddy.render.Compositor
 import io.github.intramuros.weatherbuddy.render.WidgetInfo
+import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import io.github.intramuros.weatherbuddy.widget.WeatherWidget
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -77,13 +78,16 @@ object Refresher {
             withContext(Dispatchers.IO) { store.saveImages(widget, preview) }
         }
         WeatherWidget().updateAll(app)
+        WeatherUpdates.notifyChanged()
 
-        val flags = (if (settings.wallpaperHome) WallpaperManager.FLAG_SYSTEM else 0) or
+        // A still home wallpaper would replace the animated one.
+        val liveActive = BuddyWallpaperService.isActive(app)
+        val flags = (if (settings.wallpaperHome && !liveActive) WallpaperManager.FLAG_SYSTEM else 0) or
             (if (settings.wallpaperLock) WallpaperManager.FLAG_LOCK else 0)
         if (flags != 0) {
             val metrics = app.resources.displayMetrics
             val (w, h) = metrics.widthPixels to metrics.heightPixels
-            val key = "${settings.style.slug}|$flags|${w}x$h|${plan.layers.joinToString(",")}"
+            val key = "${settings.style.slug}|$flags|${w}x$h|${plan.mirrored}|${plan.stillLayers.joinToString(",")}"
             if (key != settings.wallpaperKey) {
                 try {
                     val bitmap = withContext(Dispatchers.Default) { compositor.render(plan, settings.style, w, h) }

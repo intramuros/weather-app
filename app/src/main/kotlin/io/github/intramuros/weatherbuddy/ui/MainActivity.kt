@@ -1,6 +1,10 @@
 package io.github.intramuros.weatherbuddy.ui
 
 import android.Manifest
+import android.app.WallpaperManager
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
@@ -10,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -41,12 +46,19 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -55,11 +67,14 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.data.LocationProvider
+import io.github.intramuros.weatherbuddy.render.LiveRenderer
+import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import java.util.Date
 
 class MainActivity : ComponentActivity() {
@@ -95,6 +110,10 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
         if (granted) vm.useMyLocation()
     }
     val settings = state.settings
+    LifecycleResumeEffect(Unit) {
+        vm.checkLiveWallpaper()
+        onPauseOrDispose {}
+    }
 
     Scaffold { padding ->
         Column(
@@ -111,7 +130,10 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
                     .clip(RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                state.preview?.let {
+                val live = state.live
+                if (live != null) {
+                    LivePreview(live, Modifier.fillMaxSize())
+                } else state.preview?.let {
                     Image(
                         bitmap = it.asImageBitmap(),
                         contentDescription = stringResource(R.string.buddy_description),
@@ -155,7 +177,25 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
             }
 
             Text(stringResource(R.string.show_on), style = MaterialTheme.typography.titleMedium)
-            SwitchRow(stringResource(R.string.home_screen_wallpaper), settings.wallpaperHome, vm::setWallpaperHome)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.live_wallpaper))
+                    Text(stringResource(R.string.live_wallpaper_hint), style = MaterialTheme.typography.bodySmall)
+                }
+                Spacer(Modifier.width(8.dp))
+                if (state.liveWallpaperActive) {
+                    Text(stringResource(R.string.live_wallpaper_active), color = MaterialTheme.colorScheme.primary)
+                } else {
+                    Button(onClick = { setLiveWallpaper(context) }) { Text(stringResource(R.string.set_live_wallpaper)) }
+                }
+            }
+            SwitchRow(
+                label = stringResource(R.string.home_screen_wallpaper),
+                checked = settings.wallpaperHome && !state.liveWallpaperActive,
+                onChange = vm::setWallpaperHome,
+                enabled = !state.liveWallpaperActive,
+                supporting = if (state.liveWallpaperActive) stringResource(R.string.home_screen_live_active) else null,
+            )
             SwitchRow(stringResource(R.string.lock_screen), settings.wallpaperLock, vm::setWallpaperLock)
             Text(stringResource(R.string.widget_hint), style = MaterialTheme.typography.bodySmall)
 
@@ -223,16 +263,50 @@ private fun StyleCard(
 }
 
 @Composable
-private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+private fun SwitchRow(
+    label: String,
+    checked: Boolean,
+    onChange: (Boolean) -> Unit,
+    enabled: Boolean = true,
+    supporting: String? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(role = Role.Switch) { onChange(!checked) },
+            .clickable(enabled = enabled, role = Role.Switch) { onChange(!checked) },
     ) {
-        Text(label, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f)) {
+            Text(label)
+            supporting?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        }
         Spacer(Modifier.width(8.dp))
-        Switch(checked = checked, onCheckedChange = null)
+        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+    }
+}
+
+/** Runs the same renderer as the wallpaper, stepping at the style's frame rate. */
+@Composable
+private fun LivePreview(renderer: LiveRenderer, modifier: Modifier = Modifier) {
+    var seconds by remember(renderer) { mutableDoubleStateOf(0.0) }
+    LaunchedEffect(renderer) {
+        val start = withFrameNanos { it }
+        while (true) {
+            withFrameNanos { now -> seconds = renderer.quantize((now - start) / 1e9) }
+        }
+    }
+    Canvas(modifier) {
+        val t = seconds
+        drawIntoCanvas { renderer.draw(it.nativeCanvas, size.width.toInt(), size.height.toInt(), t) }
+    }
+}
+
+private fun setLiveWallpaper(context: Context) {
+    try {
+        context.startActivity(BuddyWallpaperService.pickerIntent(context))
+    } catch (_: ActivityNotFoundException) {
+        // Some launchers only offer the general live wallpaper list.
+        context.startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
     }
 }
 

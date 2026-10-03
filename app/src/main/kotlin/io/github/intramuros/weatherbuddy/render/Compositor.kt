@@ -7,9 +7,10 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import android.util.Log
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.withScale
 import io.github.intramuros.weatherbuddy.core.RenderPlan
 import io.github.intramuros.weatherbuddy.core.Style
-import androidx.core.graphics.createBitmap
 import java.io.FileNotFoundException
 
 /**
@@ -34,21 +35,19 @@ class Compositor(private val assets: AssetManager) {
         val out = createBitmap(width, height)
         val canvas = Canvas(out)
         val paint = Paint().apply { isFilterBitmap = !style.pixelated }
-        for (path in plan.layers) {
+        for (path in plan.stillLayers) {
             val layer = load(path) ?: continue
-            val b = if (Style.isScenery(path)) {
-                coverBounds(layer.width, layer.height, width, height)
-            } else {
-                buddyBounds(layer.width, layer.height, width, height, buddyX)
+            val b = layerBounds(path, layer.width, layer.height, width, height, buddyX)
+            canvas.mirroredIf(plan.mirrored, b) {
+                drawBitmap(layer, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), paint)
             }
-            canvas.drawBitmap(layer, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), paint)
             layer.recycle()
         }
         if (info != null) overlay.draw(canvas, info, plan, style, width, height)
         return out
     }
 
-    private fun load(path: String): Bitmap? =
+    internal fun load(path: String): Bitmap? =
         try {
             assets.open("styles/$path").use { BitmapFactory.decodeStream(it) }
         } catch (_: FileNotFoundException) {
@@ -57,7 +56,9 @@ class Compositor(private val assets: AssetManager) {
         }
 
     /** Where a layer lands on the target, in target pixels. */
-    internal data class Bounds(val left: Float, val top: Float, val width: Float, val height: Float)
+    internal data class Bounds(val left: Float, val top: Float, val width: Float, val height: Float) {
+        val centerX: Float get() = left + width / 2
+    }
 
     internal companion object {
         private const val TAG = "Compositor"
@@ -67,6 +68,21 @@ class Compositor(private val assets: AssetManager) {
 
         /** Where the buddy stands on the widget, as a fraction of its width. */
         const val WIDGET_BUDDY_X = 0.32f
+
+        fun layerBounds(path: String, srcW: Int, srcH: Int, dstW: Int, dstH: Int, buddyX: Float): Bounds =
+            if (Style.isScenery(path)) {
+                coverBounds(srcW, srcH, dstW, dstH)
+            } else {
+                buddyBounds(srcW, srcH, dstW, dstH, buddyX)
+            }
+
+        /**
+         * Draws [block] flipped around the middle of [bounds] when [mirror] is set. Each layer
+         * flips in place, so the buddy stays where she stands and text drawn later reads normally.
+         */
+        inline fun Canvas.mirroredIf(mirror: Boolean, bounds: Bounds, block: Canvas.() -> Unit) {
+            if (mirror) withScale(-1f, 1f, bounds.centerX, 0f) { block() } else block()
+        }
 
         /**
          * Scales the source to cover the target and centres it horizontally. Vertically

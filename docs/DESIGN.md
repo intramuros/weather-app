@@ -10,7 +10,9 @@ set as the home and/or lock screen wallpaper. The art style can be changed.
 |---|---|
 | Platform | Android first |
 | Art styles (v1) | **Pixel art**, **Ukiyo-e**, **Delfts Blauw** |
-| Image production | **Pixel art:** five finished scenes, one per kind of weather. **Other styles:** layered assets composited on the device (offline, free, consistent character) |
+| Image production | **Pixel art:** finished scenes, one per kind of weather and warmth. **Other styles:** layered assets composited on the device (offline, free, consistent character) |
+| Character | A girl, the same in all three styles |
+| Animation | **Live wallpaper** with moving rain, snow and wind in every style. In the layered styles her hair, blinking and scarf move too; the finished pixel-art scenes keep her still. The widget and the "still picture" wallpaper options stay still. |
 | Forecast | Open-Meteo using KNMI HARMONIE (`models=knmi_seamless`) |
 | Rain nowcast | Buienradar `raintext` (2 h ahead, 5-minute steps) |
 | Language | **Kotlin** throughout. Pure logic sits in a plain Kotlin module (`core/`), so it can become Kotlin Multiplatform if iOS ever happens. |
@@ -29,12 +31,16 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   Refresher              fetch → plan → Compositor → save images
                          → update widget → set wallpaper if enabled and changed
   Compositor             stacks assets/styles/<style>/… into a Bitmap
+  LiveRenderer           draws the plan at any moment: still runs flattened once,
+                         frame loops + particles per frame
+  BuddyWallpaperService  the animated wallpaper; draws only while visible
   InfoOverlay            draws the widget's icons and text: place, temperature,
                          condition, humidity, wind
   WeatherWidget          Glance widget showing the last picture
   MainActivity           preview, style picker, wallpaper switches, location, credits
 
-tools/placeholders/    generates simple placeholder art for the layered styles
+tools/placeholders/    generates placeholder art for the layered styles (`run`)
+                       and animated GIF previews of the live wallpaper (`preview`)
 tools/scenes/          turns the pixel-art scene mock-ups into assets
 ```
 
@@ -46,6 +52,34 @@ on the JVM without an emulator.
 
 The wallpaper is only re-set when the picture actually changes (style, layers
 or screen size), so a refresh every 30 minutes doesn't cause flicker.
+
+## Animation
+
+- **Weather effects are code, not art.** `ParticleSpec` turns the weather into
+  particle counts, speeds, slant and gustiness: heavier radar rain means more,
+  longer and faster drops, wind slants them, and gusts come and go. Snow sways,
+  and a storm adds tumbling leaves. `ParticleField` computes every particle's
+  position directly from the time, so frames never depend on the ones before
+  and nothing drifts over hours. Each style sets the particle colour and line
+  width.
+- **In the layered styles the girl moves in frame loops.** Her hair blows in
+  4 frames (faster in a storm), she blinks every few seconds, and her scarf
+  flutters in the wind. Clothes stay still. The finished pixel-art scenes have
+  her painted in, so there only the weather moves, falling over the picture.
+- **Wind direction.** Art is drawn with the wind blowing to the right. When the
+  real wind blows west (an east wind), layered art is mirrored, each layer in
+  place, so she stays where she stands and the widget's text reads normally.
+  Finished scenes are never mirrored (they're composed one way round, and the
+  widget's text positions are measured on them); only their particles follow
+  the wind.
+- **Frame rate and battery.** Pixel art runs at 12 fps and the other styles at
+  24, or 6 in battery saver. Nothing is drawn while the wallpaper is hidden.
+  For pixel art, particles snap to the scene's pixel grid, so they look like
+  part of the art.
+- Applying a live wallpaper always needs the user to confirm it in the system
+  wallpaper screen; the app opens that screen for them. While the animated
+  wallpaper is active, the "still picture on home screen" option is ignored so
+  it can't replace it.
 
 ## Weather sources
 
@@ -155,29 +189,38 @@ draw exists in that list and that nothing in the list is unreachable.
 
 ```
 <style>/background/<sky>-<day|night>.png    sky: clear, partly-cloudy, overcast, fog, thunderstorm
-<style>/body/base.png
+<style>/body/base.png                       the girl without hair
 <style>/face/<expression>.png               happy, sleepy, shivering, sweaty, soggy, windswept
+<style>/face/<expression>-blink.png         all except sleepy
 <style>/bottom/<shorts|trousers>.png
 <style>/footwear/<sandals|sneakers|boots|rain-boots>.png
 <style>/top/<tank-top|t-shirt|long-sleeve|sweater>.png
+<style>/hair/calm.png
+<style>/hair/<breezy|stormy>-<0..3>.png     a loop, blowing to the right
 <style>/outerwear/<light-jacket|raincoat|coat|puffer-coat>.png
 <style>/accessory/<scarf|gloves|sunglasses|beanie|sun-hat|umbrella-closed|umbrella-open>.png
-<style>/fx/<drizzle|rain|heavy-rain|snow|hail>.png
-<style>/fx/wind-<breezy|stormy>.png
+<style>/accessory/scarf-wind-<0..2>.png     a loop, fluttering to the right
+<style>/fx/<drizzle|rain|heavy-rain|snow|hail>.png   for still pictures only
+<style>/fx/wind-<breezy|stormy>.png                  for still pictures only
 ```
 
-That is 45 images per style, all transparent PNGs, in two shapes:
+Drawing order, bottom to top: background, (rain, when under an umbrella),
+body, face, bottom, footwear, top, hair, outerwear, accessories, rain, wind.
+
+That is 62 images per style, all transparent PNGs, in two shapes:
 
 - **Scenery** (`background/`, `fx/`) is **square**. It is the whole world the
   buddy stands in.
 - **The buddy** (every other folder) is a **9:20 frame of the same height**.
   All buddy layers share that frame, so stacking them needs no offsets.
+  Animated frames are trimmed to their visible pixels when loaded, so
+  full-frame images don't cost much memory.
 
 The app scales the scenery to cover the target and draws the buddy's frame at
 the same scale, wherever it should stand:
 
-- **Wallpaper:** the buddy is centred. A 9:20 phone shows exactly the middle
-  of the scene, so the buddy's frame fills the screen.
+- **Wallpaper (still or animated):** the buddy is centred. A 9:20 phone shows
+  exactly the middle of the scene, so the buddy's frame fills the screen.
 - **Widget:** the picture is square; the widget fits it to its own shape. The
   buddy stands at 32 % of the width, and the place, temperature, condition,
   humidity and wind are drawn on the right (`InfoOverlay`), in a serif.
@@ -188,8 +231,9 @@ the same scale, wherever it should stand:
   scene for the widget's text, so keep the sun and moon left of centre.
 - Draw at **2400 × 2400** (scenery) and **1080 × 2400** (buddy) or larger.
 - **Ukiyo-e:** flat colour areas, bold outlines and a woodblock paper
-  texture in the background layer. Rain is drawn as Hiroshige-style
-  diagonal lines. Prussian blue, vermilion and ochre.
+  texture in the background layer. Prussian blue, vermilion and ochre. Rain is
+  drawn as long, thin diagonal lines in the style of Hiroshige; the app's
+  particles imitate that.
 - **Delfts Blauw:** cobalt on off-white glaze, drawn with brush hatching. The
   background includes a tile border, with windmill and canal motifs.
   Precipitation is painted in the same blue. Nearly monochrome, so the
@@ -201,9 +245,12 @@ the same scale, wherever it should stand:
 2. ✅ Android shell: refresh worker, settings screen, compositor
 3. ✅ Placeholder asset pack (`./gradlew :tools:placeholders:run`)
 4. ✅ Glance widget + home/lock screen wallpaper
-5. Real art: ✅ pixel art (finished scenes); Ukiyo-e and Delfts Blauw still
+5. ✅ Live wallpaper: particles, hair/blink/scarf loops, wind direction
+6. ✅ CI: tests, lint and an installable APK on every pull request; `master`
+   publishes it
+7. Real art: ✅ pixel art (finished scenes); Ukiyo-e and Delfts Blauw still
    placeholders. Drop PNGs into `app/src/main/assets/styles/<style>/` with
    the names above.
-6. ✅ Widget layout: place, temperature, condition, humidity and wind
-7. Polish: subtle animation in the widget (rain frames), a forecast strip
-   ("rain at 14:45"), more styles, release signing
+8. ✅ Widget layout: place, temperature, condition, humidity and wind
+9. Polish: rain splashes, a forecast strip ("rain at 14:45"), more styles,
+   a private release key for a store release
