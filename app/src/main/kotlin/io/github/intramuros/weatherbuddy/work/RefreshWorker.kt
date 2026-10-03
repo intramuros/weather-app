@@ -10,20 +10,29 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 
 class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result =
-        when (val result = Refresher.run(applicationContext, fetch = true)) {
+    override suspend fun doWork(): Result {
+        val result = Refresher.run(applicationContext, fetch = true)
+        // A tap doesn't keep retrying in the background; tapping again is the retry.
+        if (inputData.getBoolean(KEY_TAPPED, false)) return Result.success()
+        return when (result) {
             is RefreshResult.Ok -> if (result.stale) Result.retry() else Result.success()
             RefreshResult.NoData -> Result.retry()
         }
+    }
 
     companion object {
         private const val PERIODIC = "refresh"
         private const val ONCE = "refresh-now"
+        private const val TAPPED = "refresh-tapped"
+        private const val KEY_TAPPED = "tapped"
 
         private val online = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
@@ -40,5 +49,21 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             val request = OneTimeWorkRequestBuilder<RefreshWorker>().setConstraints(online).build()
             WorkManager.getInstance(context).enqueueUniqueWork(ONCE, ExistingWorkPolicy.REPLACE, request)
         }
+
+        /**
+         * For the widget's refresh button. Runs even offline, so the tap always
+         * ends, showing the last known weather; taps while it runs are ignored.
+         */
+        fun runTapped(context: Context) {
+            val request = OneTimeWorkRequestBuilder<RefreshWorker>()
+                .setInputData(workDataOf(KEY_TAPPED to true))
+                .build()
+            WorkManager.getInstance(context).enqueueUniqueWork(TAPPED, ExistingWorkPolicy.KEEP, request)
+        }
+
+        /** Whether a [runTapped] refresh is waiting or running. */
+        fun tappedInProgress(context: Context): Flow<Boolean> =
+            WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(TAPPED)
+                .map { infos -> infos.any { !it.state.isFinished } }
     }
 }

@@ -2,8 +2,8 @@
 
 A cute girl dressed for the weather where you are, shown as an animated
 Android wallpaper (rain, snow and wind move around her), a widget, or a still
-lock screen. The widget also shows the place, temperature, humidity and wind.
-You can pick the art style: **Pixel art**,
+lock screen. The widget also shows the place, temperature, humidity and wind,
+and has a button to refresh it. You can pick the art style: **Pixel art**,
 **Ukiyo-e** or **Delfts Blauw**.
 
 Weather data comes from [Open-Meteo](https://open-meteo.com) (KNMI HARMONIE
