@@ -10,6 +10,8 @@ data class Conditions(
     val apparentTemperatureC: Double,
     val windSpeedKmh: Double,
     val windGustsKmh: Double,
+    /** Where the wind blows from, in degrees clockwise from north. `null` in snapshots saved before it was fetched. */
+    val windDirectionDeg: Double? = null,
     /** `null` when the model does not provide UV (e.g. KNMI HARMONIE). */
     val uvIndex: Double?,
     /** WMO weather interpretation code as used by Open-Meteo. */

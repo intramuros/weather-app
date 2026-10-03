@@ -17,21 +17,23 @@ import java.util.Random
 import javax.imageio.ImageIO
 
 /**
- * Generates simple placeholder art for every layer of every style, so the app
- * can be tried end to end before the real art exists. Shapes are drawn in a
- * 135 × 300 logical canvas (9:20); pixel art stays at that size, the other
- * styles are drawn 4× larger with anti-aliasing.
+ * Generates placeholder art for every layer of every style, so the app can be
+ * tried end to end before the real art exists. Scenery (background and
+ * effects) is drawn in a 300 × 300 logical canvas, the buddy in a 135 × 300
+ * frame. Pixel art stays at that size and has its own painter
+ * ([PixelArtPainter]); the other styles are drawn 4× larger with anti-aliasing.
  *
  * Usage: `./gradlew :tools:placeholders:run`
  */
 fun main(args: Array<String>) {
     val out = File(args.firstOrNull() ?: "app/src/main/assets/styles")
     for (style in Style.entries) {
-        val painter = Painter(style)
+        val paint: (String) -> BufferedImage =
+            if (style == Style.PIXEL_ART) PixelArtPainter()::paint else Painter(style)::paint
         for (path in style.requiredAssets()) {
             val file = File(out, path)
             file.parentFile.mkdirs()
-            ImageIO.write(painter.paint(path), "png", file)
+            ImageIO.write(paint(path), "png", file)
         }
         println("${style.displayName}: ${style.requiredAssets().size} layers")
     }
@@ -41,6 +43,10 @@ fun main(args: Array<String>) {
 private const val W = 135.0
 private const val H = 300.0
 private const val GROUND = 262.0
+private const val SCENE_W = 300.0
+
+/** Where the buddy's frame sits when the scene is shown as a wallpaper. */
+private const val FRAME_X = (SCENE_W - W) / 2
 
 private class Palette(
     val skyDay: Color,
@@ -82,7 +88,8 @@ private class Painter(private val style: Style) {
     private lateinit var g: Graphics2D
 
     fun paint(path: String): BufferedImage {
-        val image = BufferedImage((W * scale).toInt(), (H * scale).toInt(), BufferedImage.TYPE_INT_ARGB)
+        val width = if (Style.isScenery(path)) SCENE_W else W
+        val image = BufferedImage((width * scale).toInt(), (H * scale).toInt(), BufferedImage.TYPE_INT_ARGB)
         g = image.createGraphics()
         val aa = if (style.pixelated) RenderingHints.VALUE_ANTIALIAS_OFF else RenderingHints.VALUE_ANTIALIAS_ON
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa)
@@ -142,8 +149,9 @@ private class Painter(private val style: Style) {
             "thunderstorm" -> mix(base, Color(0x2B2B3A), 0.6)
             else -> base
         }
-        fill(rect(0.0, 0.0, W, GROUND), skyColor, outlined = false)
-        fill(rect(0.0, GROUND, W, H - GROUND), if (night) mix(p.ground, Color.BLACK, 0.4) else p.ground, outlined = false)
+        fill(rect(0.0, 0.0, SCENE_W, GROUND), skyColor, outlined = false)
+        fill(rect(0.0, GROUND, SCENE_W, H - GROUND), if (night) mix(p.ground, Color.BLACK, 0.4) else p.ground, outlined = false)
+        g.translate(FRAME_X, 0.0)
 
         val celestial = if (night) p.light else p.accent
         when (sky) {
@@ -153,7 +161,7 @@ private class Painter(private val style: Style) {
                 cloud(70.0, 62.0, p.light)
             }
             "overcast" -> { cloud(35.0, 45.0, p.light); cloud(90.0, 70.0, p.light); cloud(55.0, 95.0, p.light) }
-            "fog" -> for (y in listOf(150.0, 190.0, 230.0)) fill(rect(0.0, y, W, 8.0), mix(skyColor, Color.WHITE, 0.6), false)
+            "fog" -> for (y in listOf(150.0, 190.0, 230.0)) fill(rect(-FRAME_X, y, SCENE_W, 8.0), mix(skyColor, Color.WHITE, 0.6), false)
             "thunderstorm" -> {
                 cloud(45.0, 50.0, grey)
                 cloud(95.0, 60.0, grey)
@@ -165,15 +173,16 @@ private class Painter(private val style: Style) {
             }
         }
         // Style signatures: a tile border for Delft, a red seal for ukiyo-e.
+        g.translate(-FRAME_X, 0.0)
         when (style) {
             Style.DELFTS_BLAUW -> {
                 g.color = p.outline
                 g.stroke = BasicStroke(3f)
-                g.draw(rect(3.0, 3.0, W - 6, H - 6))
+                g.draw(rect(3.0, 3.0, SCENE_W - 6, H - 6))
                 g.stroke = BasicStroke(1f)
-                g.draw(rect(8.0, 8.0, W - 16, H - 16))
+                g.draw(rect(8.0, 8.0, SCENE_W - 16, H - 16))
             }
-            Style.UKIYO_E -> fill(rect(112.0, 270.0, 14.0, 18.0), p.primary, outlined = false)
+            Style.UKIYO_E -> fill(rect(FRAME_X + 112.0, 270.0, 14.0, 18.0), p.primary, outlined = false)
             Style.PIXEL_ART -> Unit
         }
     }
@@ -326,26 +335,26 @@ private class Painter(private val style: Style) {
         val random = Random(slug.hashCode().toLong())
         val diagonal = if (style == Style.UKIYO_E) 6.0 else 0.0
         fun drops(count: Int, length: Double, color: Color) = repeat(count) {
-            val x = random.nextDouble() * W
+            val x = random.nextDouble() * SCENE_W
             val y = random.nextDouble() * GROUND
             line(x, y, x - diagonal * length / 10, y + length, color)
         }
         when (slug) {
-            "drizzle" -> drops(25, 3.0, p.water)
-            "rain" -> drops(60, 8.0, p.water)
-            "heavy-rain" -> drops(140, 14.0, p.water)
-            "snow" -> repeat(70) { fill(oval(random.nextDouble() * W, random.nextDouble() * GROUND, 1.5), p.light) }
-            "hail" -> repeat(50) { fill(oval(random.nextDouble() * W, random.nextDouble() * GROUND, 2.0), p.light) }
+            "drizzle" -> drops(55, 3.0, p.water)
+            "rain" -> drops(130, 8.0, p.water)
+            "heavy-rain" -> drops(310, 14.0, p.water)
+            "snow" -> repeat(155) { fill(oval(random.nextDouble() * SCENE_W, random.nextDouble() * GROUND, 1.5), p.light) }
+            "hail" -> repeat(110) { fill(oval(random.nextDouble() * SCENE_W, random.nextDouble() * GROUND, 2.0), p.light) }
             "wind-breezy", "wind-stormy" -> {
-                val gusts = if (slug == "wind-stormy") 9 else 4
+                val gusts = if (slug == "wind-stormy") 20 else 9
                 repeat(gusts) {
                     val y = 30 + random.nextDouble() * 200
-                    val x = random.nextDouble() * (W - 50)
+                    val x = random.nextDouble() * (SCENE_W - 50)
                     g.color = if (style == Style.PIXEL_ART) p.light else mix(p.light, p.secondary, 0.3)
                     g.draw(Arc2D.Double(x, y, 50.0, 12.0, 0.0, 160.0, Arc2D.OPEN))
                 }
-                if (slug == "wind-stormy") repeat(6) {
-                    fill(oval(random.nextDouble() * W, 40 + random.nextDouble() * 180, 3.0, 2.0), p.ground)
+                if (slug == "wind-stormy") repeat(13) {
+                    fill(oval(random.nextDouble() * SCENE_W, 40 + random.nextDouble() * 180, 3.0, 2.0), p.ground)
                 }
             }
             else -> error("no placeholder for fx $slug")

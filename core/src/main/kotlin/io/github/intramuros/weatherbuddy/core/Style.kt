@@ -3,9 +3,10 @@ package io.github.intramuros.weatherbuddy.core
 /**
  * Art styles and the layer stack that turns a scene + outfit into a picture.
  *
- * Every style ships the same set of transparent PNG layers with a 9:20 aspect
- * ratio at `<style>/<category>/<slug>.png`, so switching style only swaps the
- * folder.
+ * Every style ships the same set of transparent PNG layers at
+ * `<style>/<category>/<slug>.png`, so switching style only swaps the folder.
+ * Scenery layers (see [isScenery]) are square; the buddy's layers are a 9:20
+ * frame of the same height, so the buddy can stand anywhere in the scene.
  */
 enum class Style(
     val slug: String,
@@ -58,7 +59,12 @@ enum class Style(
     }
 
     companion object {
+        private val SCENERY = setOf("background", "fx")
+
         fun fromSlug(slug: String?): Style? = entries.firstOrNull { it.slug == slug }
+
+        /** Background and weather effects fill the scene; every other layer belongs to the buddy. */
+        fun isScenery(path: String): Boolean = path.split('/').getOrNull(1) in SCENERY
     }
 }
 
