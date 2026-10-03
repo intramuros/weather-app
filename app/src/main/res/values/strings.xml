@@ -10,6 +10,8 @@
     <string name="wind_speed">%1$d km/h</string>
     <string name="humidity">%1$d%%</string>
     <string name="condition_clear">Clear</string>
+    <string name="condition_sunny">Sunny</string>
+    <string name="condition_windy">Windy</string>
     <string name="condition_partly_cloudy">Partly cloudy</string>
     <string name="condition_cloudy">Cloudy</string>
     <string name="condition_fog">Fog</string>

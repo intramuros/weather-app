@@ -36,9 +36,12 @@ enum class Style(
     /** The widget's icons for a [ScenePicture]: the same size, transparent elsewhere. */
     fun sceneIcons(picture: ScenePicture) = "$slug/scene/${picture.slug}-icons.webp"
 
-    /** Asset paths to draw, bottom-most first. */
-    fun layers(scene: Scene, outfit: Outfit): List<String> = if (wholeScenes) {
-        listOf(scenePicture(ScenePicture.of(Condition.of(scene))))
+    /**
+     * Asset paths to draw, bottom-most first. [picture] is the scene to show for
+     * [wholeScenes] styles (see [ScenePicture.choose]).
+     */
+    fun layers(scene: Scene, outfit: Outfit, picture: ScenePicture?): List<String> = if (wholeScenes) {
+        listOf(scenePicture(requireNotNull(picture) { "$this is drawn as whole scenes" }))
     } else {
         layeredScene(scene, outfit)
     }

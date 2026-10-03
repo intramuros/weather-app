@@ -82,33 +82,48 @@ Modifiers:
 
 ### Pixel art: finished scenes
 
-Pixel art is five finished square pictures of the same girl on an Amsterdam
-canal, one per kind of weather (`ScenePicture`):
+Pixel art is a set of finished square pictures of the same girl on an
+Amsterdam canal (`ScenePicture`). Each shows one kind of sky (`SceneKind`)
+and dresses her for one band of feels-like temperature (`Warmth`, the same
+bands as the dressing rules above):
 
-| Picture | Used for |
-|---|---|
-| `partly-cloudy` | clear, partly cloudy |
-| `cloudy` | cloudy, fog |
-| `rain` | drizzle, rain, heavy rain |
-| `storm` | thunderstorm, hail |
-| `snow` | snow |
+| Picture | Sky | Warmth | Outfit |
+|---|---|---|---|
+| `clear-warm` | sunny | warm (20–25 °C) | dress, cardigan, sunglasses |
+| `partly-cloudy-cold` | partly cloudy | cold (3–10 °C) | coat, scarf, closed umbrella |
+| `cloudy-cold` | cloudy | cold | coat, scarf, closed umbrella |
+| `windy-cool` | windy, autumn leaves | cool (10–15 °C) | trench coat, scarf |
+| `rain-cold` | rain | cold | coat, scarf, umbrella |
+| `storm-cool` | storm | cool | raincoat, rain boots, umbrella |
+| `storm-cold` | storm | cold | coat, scarf, umbrella |
+| `snow-cold` | snow | cold | coat, scarf, umbrella |
+| `snow-freezing` | snow | freezing (< 3 °C) | puffer, bobble hat, mittens |
+
+`ScenePicture.choose` picks the picture whose outfit is closest to how warm
+it feels, among pictures of the same or a similar sky. Clothes count for
+more than the sky: a cold, sunny day gets the partly cloudy picture with a
+coat, not the sunny one with a dress. Snow is only ever shown as snow, and
+the sunny picture is avoided at night. Adding a picture for a missing
+combination (a hot day, a mild rainy day, a night) makes the match exact.
 
 ```
 pixel-art/scene/<picture>.webp        the scene, no icons or text (1200 × 1200)
 pixel-art/scene/<picture>-icons.webp  its weather, drop and wind icons, on transparency
 ```
 
-The sources are widget mock-ups with example text, in `tools/scenes/source/`.
-`tools/scenes/prepare.py` removes the frame, text and icons, fills the gaps
-with the surrounding sky, and writes both files. The wallpaper uses the plain
-scene (its middle, on a phone). The widget draws the icons on top, then the
-live text where the mock-up had it: place, humidity and wind on the right,
-temperature and condition on the left. `SceneLayout` holds those positions
-per picture, measured from the artwork. The temperature uses Jersey 10 and
-the rest DotGothic16 (Latin subset), both SIL OFL, in `assets/fonts/`.
+The sources are widget mock-ups with example text, in `tools/scenes/source/`,
+named `<sky>-<warmth>`. `tools/scenes/prepare.py` removes the frame, text and
+icons, fills the gaps with the surrounding sky, and writes both files. The
+wallpaper uses the plain scene (its middle, on a phone). The widget draws the
+icons on top, then the live text where the mock-up had it: place, humidity
+and wind on the right, temperature and condition on the left. `SceneLayout`
+holds those positions per picture, measured from the artwork. The
+temperature uses Jersey 10 and the rest DotGothic16 (Latin subset), both SIL
+OFL, in `assets/fonts/`.
 
-The girl's outfit is part of each picture, so the dressing rules above only
-apply to the layered styles.
+To add a picture: put the mock-up in `tools/scenes/source/`, add its text and
+icon boxes to `prepare.py` and run it, then add a `ScenePicture` entry and
+its `SceneLayout`.
 
 ### Layered styles
 

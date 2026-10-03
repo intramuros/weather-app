@@ -41,14 +41,14 @@ data class WidgetInfo(
         fun from(context: Context, conditions: Conditions, scene: Scene, place: String?) = WidgetInfo(
             place = place,
             temperature = "${conditions.temperatureC.roundToInt()}°",
-            condition = context.getString(label(Condition.of(scene))),
+            condition = context.getString(label(Condition.of(scene), scene.timeOfDay)),
             humidity = conditions.humidityPercent?.let { context.getString(R.string.humidity, it.roundToInt()) },
             wind = context.getString(R.string.wind_speed, conditions.windSpeedKmh.roundToInt()),
             windDirection = conditions.windDirectionDeg?.let { CompassPoint.fromDegrees(it).name },
         )
 
-        private fun label(condition: Condition) = when (condition) {
-            Condition.CLEAR -> R.string.condition_clear
+        private fun label(condition: Condition, time: TimeOfDay) = when (condition) {
+            Condition.CLEAR -> if (time == TimeOfDay.DAY) R.string.condition_sunny else R.string.condition_clear
             Condition.PARTLY_CLOUDY -> R.string.condition_partly_cloudy
             Condition.CLOUDY -> R.string.condition_cloudy
             Condition.FOG -> R.string.condition_fog
@@ -58,6 +58,7 @@ data class WidgetInfo(
             Condition.SNOW -> R.string.condition_snow
             Condition.HAIL -> R.string.condition_hail
             Condition.THUNDERSTORM -> R.string.condition_thunderstorm
+            Condition.WINDY -> R.string.condition_windy
         }
     }
 }
@@ -81,8 +82,9 @@ internal class InfoOverlay(private val assets: AssetManager) {
     private val smallFont by lazy { PixelFont(Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"), 0.815f, 0.0275f) }
 
     fun draw(canvas: Canvas, info: WidgetInfo, plan: RenderPlan, style: Style, width: Int, height: Int) {
-        if (style.wholeScenes) {
-            drawOnScene(canvas, info, ScenePicture.of(Condition.of(plan.scene)), style, width, height)
+        val picture = plan.picture
+        if (picture != null) {
+            drawOnScene(canvas, info, picture, style, width, height)
         } else {
             drawBesideBuddy(canvas, info, style, plan.scene.timeOfDay, width, height)
         }
@@ -219,11 +221,15 @@ internal class SceneLayout(
         const val LEFT_COLUMN_END = 720f
 
         fun of(picture: ScenePicture): SceneLayout = when (picture) {
-            ScenePicture.SNOW -> SceneLayout(205f, 397f, 126f, 465f, 40f, 736f, 145f, 884f, 258f, 353f, 416f, 42f)
-            ScenePicture.STORM -> SceneLayout(103f, 397f, 141f, 452f, 37f, 843f, 137f, 952f, 259f, 348f, 399f, 37f)
-            ScenePicture.RAIN -> SceneLayout(132f, 428f, 156f, 497f, 51f, 735f, 134f, 907f, 254f, 364f, 431f, 49f)
-            ScenePicture.CLOUDY -> SceneLayout(217f, 409f, 147f, 476f, 44f, 752f, 159f, 886f, 274f, 381f, 444f, 45f)
-            ScenePicture.PARTLY_CLOUDY -> SceneLayout(130f, 396f, 139f, 459f, 45f, 780f, 133f, 915f, 255f, 358f, 422f, 46f)
+            ScenePicture.CLEAR_WARM -> SceneLayout(228f, 403f, 127f, 469f, 43f, 769f, 146f, 915f, 264f, 360f, 420f, 44f)
+            ScenePicture.PARTLY_CLOUDY_COLD -> SceneLayout(130f, 396f, 139f, 459f, 45f, 780f, 133f, 915f, 255f, 358f, 422f, 46f)
+            ScenePicture.CLOUDY_COLD -> SceneLayout(217f, 409f, 147f, 476f, 44f, 752f, 159f, 886f, 274f, 381f, 444f, 45f)
+            ScenePicture.WINDY_COOL -> SceneLayout(174f, 419f, 146f, 483f, 47f, 735f, 133f, 910f, 255f, 364f, 432f, 49f)
+            ScenePicture.RAIN_COLD -> SceneLayout(132f, 428f, 156f, 497f, 51f, 735f, 134f, 907f, 254f, 364f, 431f, 49f)
+            ScenePicture.STORM_COOL -> SceneLayout(141f, 426f, 154f, 490f, 46f, 747f, 128f, 913f, 249f, 359f, 426f, 47f)
+            ScenePicture.STORM_COLD -> SceneLayout(103f, 397f, 141f, 452f, 37f, 843f, 137f, 952f, 259f, 348f, 399f, 37f)
+            ScenePicture.SNOW_COLD -> SceneLayout(205f, 397f, 126f, 465f, 40f, 736f, 145f, 884f, 258f, 353f, 416f, 42f)
+            ScenePicture.SNOW_FREEZING -> SceneLayout(167f, 411f, 139f, 466f, 44f, 760f, 132f, 908f, 249f, 352f, 415f, 46f)
         }
     }
 }
