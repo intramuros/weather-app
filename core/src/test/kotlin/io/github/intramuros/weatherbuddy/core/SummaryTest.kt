@@ -48,6 +48,17 @@ class SummaryTest {
     }
 
     @Test
+    fun dayLabels() {
+        fun label(code: Int, gusts: Double = 20.0) =
+            Condition.of(Scene.from(DayForecast("2026-10-04", code, 8.0, 14.0, 0.0, gusts)))
+        assertEquals(Condition.CLEAR, label(0))
+        assertEquals(Condition.RAIN, label(61))
+        assertEquals(Condition.SNOW, label(73))
+        assertEquals(Condition.WINDY, label(3, gusts = 50.0))
+        assertEquals(Condition.RAIN, label(61, gusts = 50.0))
+    }
+
+    @Test
     fun warmthBands() {
         assertEquals(Warmth.HOT, Warmth.of(25.0))
         assertEquals(Warmth.WARM, Warmth.of(21.0))

@@ -18,18 +18,25 @@ data class Scene(
     val wind: Wind,
 ) {
     companion object {
-        fun from(c: Conditions): Scene {
-            val gusts = maxOf(c.windGustsKmh, c.windSpeedKmh)
-            return Scene(
-                sky = skyFromCode(c.weatherCode),
-                precipitation = precipitation(c),
-                timeOfDay = if (c.isDay) TimeOfDay.DAY else TimeOfDay.NIGHT,
-                wind = when {
-                    gusts < 35 -> Wind.CALM
-                    gusts < 62 -> Wind.BREEZY
-                    else -> Wind.STORMY
-                },
-            )
+        fun from(c: Conditions): Scene = Scene(
+            sky = skyFromCode(c.weatherCode),
+            precipitation = precipitation(c),
+            timeOfDay = if (c.isDay) TimeOfDay.DAY else TimeOfDay.NIGHT,
+            wind = windFromGusts(maxOf(c.windGustsKmh, c.windSpeedKmh)),
+        )
+
+        /** A day of the forecast, by daylight; there's no radar that far ahead. */
+        fun from(day: DayForecast): Scene = Scene(
+            sky = skyFromCode(day.weatherCode),
+            precipitation = precipitationFromCode(day.weatherCode),
+            timeOfDay = TimeOfDay.DAY,
+            wind = windFromGusts(day.windGustsMaxKmh),
+        )
+
+        private fun windFromGusts(gusts: Double) = when {
+            gusts < 35 -> Wind.CALM
+            gusts < 62 -> Wind.BREEZY
+            else -> Wind.STORMY
         }
 
         /** Sky for a WMO weather code. Showers get sunny spells, steady rain is grey. */

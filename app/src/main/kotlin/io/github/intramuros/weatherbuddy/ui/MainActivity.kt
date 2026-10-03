@@ -49,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -60,22 +61,41 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.intramuros.weatherbuddy.R
+import io.github.intramuros.weatherbuddy.core.Condition
+import io.github.intramuros.weatherbuddy.core.DayForecast
+import io.github.intramuros.weatherbuddy.core.Scene
 import io.github.intramuros.weatherbuddy.core.Style
+import io.github.intramuros.weatherbuddy.core.TimeOfDay
 import io.github.intramuros.weatherbuddy.data.LocationProvider
+import io.github.intramuros.weatherbuddy.labelRes
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
+import java.time.DateTimeException
+import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeParseException
+import java.time.format.TextStyle
 import java.util.Date
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -160,6 +180,7 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
             state.message?.let {
                 Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
+            snapshot?.let { Forecast(it.conditions.forecast, it.conditions.timeZone) }
 
             if (settings == null) return@Column
 
@@ -229,6 +250,127 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
         }
     }
 }
+
+/**
+ * Today and the coming days, one row each; days already past are left out.
+ * "Today" is today at the forecast's location, whose dates the days are.
+ */
+@Composable
+private fun Forecast(days: List<DayForecast>, timeZone: String?) {
+    val today = rememberToday(remember(timeZone) { zoneOrDefault(timeZone) })
+    val coming = days.mapNotNull { day ->
+        val date = try {
+            LocalDate.parse(day.date)
+        } catch (_: DateTimeParseException) {
+            return@mapNotNull null
+        }
+        (day to date).takeIf { !date.isBefore(today) }
+    }
+    if (coming.isEmpty()) return
+    Column {
+        Text(stringResource(R.string.coming_days), style = MaterialTheme.typography.titleMedium)
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp),
+        ) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                coming.forEach { (day, date) -> DayRow(day, dayName(date, today)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DayRow(day: DayForecast, name: String) {
+    val condition = stringResource(Condition.of(Scene.from(day)).labelRes(TimeOfDay.DAY))
+    val max = day.maxC.roundToInt()
+    val min = day.minC.roundToInt()
+    val wet = day.precipitationMm >= RAIN_THRESHOLD_MM
+    val description = listOfNotNull(
+        stringResource(R.string.day_description, name, condition, min, max),
+        if (wet) stringResource(R.string.day_rain_description, day.precipitationMm) else null,
+    ).joinToString(", ")
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .clearAndSetSemantics { contentDescription = description },
+    ) {
+        Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        Text(
+            condition,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            if (wet) stringResource(R.string.precipitation_mm, day.precipitationMm) else "",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(64.dp),
+        )
+        Text(
+            stringResource(R.string.degrees, max),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(44.dp),
+        )
+        Text(
+            stringResource(R.string.degrees, min),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(40.dp),
+        )
+    }
+}
+
+@Composable
+private fun dayName(date: LocalDate, today: LocalDate): String {
+    val locale = LocalConfiguration.current.locales[0]
+    return when (date) {
+        today -> stringResource(R.string.today)
+        today.plusDays(1) -> stringResource(R.string.tomorrow)
+        // Some languages, Dutch among them, write day names in lower case.
+        else -> date.dayOfWeek.getDisplayName(TextStyle.FULL, locale).replaceFirstChar { it.titlecase(locale) }
+    }
+}
+
+/**
+ * Today's date in [zone], kept current: checked again whenever the app comes
+ * back to the front, and at midnight while it stays open.
+ */
+@Composable
+private fun rememberToday(zone: ZoneId): LocalDate {
+    var today by remember(zone) { mutableStateOf(LocalDate.now(zone)) }
+    LifecycleResumeEffect(zone) {
+        today = LocalDate.now(zone)
+        onPauseOrDispose {}
+    }
+    LaunchedEffect(zone) {
+        while (true) {
+            val now = ZonedDateTime.now(zone)
+            today = now.toLocalDate()
+            delay(Duration.between(now, today.plusDays(1).atStartOfDay(zone)).toMillis() + 1_000)
+        }
+    }
+    return today
+}
+
+private fun zoneOrDefault(id: String?): ZoneId = try {
+    id?.let(ZoneId::of) ?: ZoneId.systemDefault()
+} catch (_: DateTimeException) {
+    ZoneId.systemDefault()
+}
+
+/** Less than this over a day (mm) isn't worth showing. */
+private const val RAIN_THRESHOLD_MM = 0.1
 
 @Composable
 private fun StyleCard(

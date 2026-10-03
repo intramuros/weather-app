@@ -28,7 +28,8 @@ core/                  pure Kotlin/JVM, no Android
   Style                  per style: asset paths, frame rate, particle looks
 
 app/                   Android (Compose, Glance, WorkManager, DataStore)
-  RefreshWorker          every 30 min while online
+  RefreshWorker          every 30 min while online, and on the widget's
+                         refresh button
   Refresher              fetch → plan → Compositor → save images
                          → update widget → set wallpaper if enabled and changed
   Compositor             draws the picture from assets/scenes/<style>/ into a Bitmap
@@ -37,9 +38,11 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   BuddyWallpaperService  the animated wallpaper; draws only while visible
   InfoOverlay            draws the widget's icons and text: place, temperature,
                          condition, humidity, wind
-  WeatherWidget          Glance widget showing the last picture
-  MainActivity           preview, style picker (once there's a choice), wallpaper
-                         switches, location, credits
+  WeatherWidget          Glance widget showing the last picture, with a refresh
+                         button in the bottom-right corner
+  MainActivity           preview, forecast for the coming days, style picker
+                         (once there's a choice), wallpaper switches, location,
+                         credits
 
 tools/preview/         animated GIF previews of the live wallpaper (`run`)
 tools/scenes/          turns the pixel-art scene mock-ups into assets (`prepare.py`),
@@ -83,7 +86,7 @@ screen size), so a refresh every 30 minutes doesn't cause flicker.
 
 | Source | Used for | Key | Terms |
 |---|---|---|---|
-| Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
+| Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV; per day for 5 days: weather code, high/low, rain total, strongest gust | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
 | Buienradar `gpsgadget.buienradar.nl/data/raintext` | rain right now + next 2 h | none | Free if we credit buienradar.nl with a link. Show this in the app's About/credits. |
 | *Fallbacks* | | | |
 | KNMI Data Platform | official open data (CC-BY 4.0) | free key | Raw NetCDF/HDF5, so better processed on a server |
@@ -152,7 +155,9 @@ icons on top, then the live text where the mock-up had it: place, humidity
 and wind on the right, temperature and condition on the left. `SceneLayout`
 holds those positions per picture, measured from the artwork. The
 temperature uses Jersey 10 and the rest DotGothic16 (Latin subset), both SIL
-OFL, in `assets/fonts/`.
+OFL, in `assets/fonts/`. In every style, the widget's refresh button sits in
+the bottom-right corner, over the ground; it shows three dots while the
+refresh runs.
 
 To add a picture: put the mock-up in `tools/scenes/source/`, add its text and
 icon boxes to `prepare.py` and run it, then add a `ScenePicture` entry and
