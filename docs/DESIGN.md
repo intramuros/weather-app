@@ -125,27 +125,42 @@ bands as the dressing rules above):
 |---|---|---|---|
 | `clear-hot` | sunny (day) | hot (25 °C+) | sundress, sun hat, sandals |
 | `clear-warm` | sunny (day) | warm (20–25 °C) | dress, cardigan, sunglasses |
+| `clear-freezing` | sunny (day), snow on the ground | freezing (< 3 °C) | puffer, bobble hat, scarf |
+| `clear-night-hot` | clear night | hot | T-shirt, shorts |
+| `clear-night-warm` | clear night | warm | T-shirt, shorts |
 | `clear-night-cold` | clear night | cold (3–10 °C) | coat, scarf |
 | `partly-cloudy-mild` | partly cloudy (day) | mild (15–20 °C) | sweater, jeans, sneakers |
 | `partly-cloudy-cold` | partly cloudy (day) | cold | coat, scarf, closed umbrella |
 | `cloudy-cool` | cloudy | cool (10–15 °C) | sweater, jacket |
 | `cloudy-cold` | cloudy | cold | coat, scarf, closed umbrella |
+| `cloudy-freezing` | cloudy | freezing | coat, scarf |
 | `fog-cool` | fog | cool | sweater, jacket, scarf |
-| `windy-cool` | windy, autumn leaves | cool | trench coat, scarf |
+| `fog-freezing` | fog | freezing | coat, scarf |
+| `windy-mild` | windy (day) | mild | hoodie, jeans |
+| `windy-cool` | windy, autumn leaves (day) | cool | trench coat, scarf |
+| `windy-night-cool` | windy night | cool | hoodie, jeans |
+| `windy-freezing` | windy (day) | freezing | coat, blowing scarf |
+| `windy-night-freezing` | windy night | freezing | coat, blowing scarf |
+| `rain-hot` | rain | hot | T-shirt, shorts, umbrella |
+| `rain-warm` | rain (day) | warm | T-shirt, shorts, umbrella |
 | `rain-mild` | rain | mild | light jacket, umbrella |
+| `rain-night-cool` | rain at night | cool | coat, scarf, umbrella |
 | `rain-cold` | rain | cold | coat, scarf, umbrella |
+| `rain-freezing` | freezing rain | freezing | coat, scarf |
+| `storm-warm` | storm | warm | raincoat, rain boots |
 | `storm-cool` | storm | cool | raincoat, rain boots, umbrella |
 | `storm-cold` | storm | cold | coat, scarf, umbrella |
 | `snow-cold` | snow | cold | coat, scarf, umbrella |
-| `snow-freezing` | snow | freezing (< 3 °C) | puffer, bobble hat, mittens |
+| `snow-freezing` | snow (day) | freezing (< 3 °C) | puffer, bobble hat, mittens |
+| `snow-night-freezing` | snow at night | freezing | coat, bobble hat, scarf |
 
 `ScenePicture.choose` picks the picture whose outfit is closest to how warm
 it feels, among pictures of the same or a similar sky. Clothes count for
 more than the sky: a cold, sunny day gets the partly cloudy picture with a
 coat, not the sunny one with a dress. Snow is only ever shown as snow, and a
 sky for the wrong time of day (sun at night, stars by day) counts against a
-picture. Adding a picture for a missing combination (a warm night, a hot
-rainy day, a mild storm) makes the match exact.
+picture. Adding a picture for a missing combination (for instance a mild
+foggy day or a cold windy night) makes the match exact.
 
 ```
 pixel-art/scene/<picture>.webp        the scene, no icons or text (1200 × 1200)
