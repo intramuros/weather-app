@@ -1,7 +1,8 @@
-/target
-**/*.rs.bk
-.idea/
-*.iml
-local.properties
 .gradle/
 build/
+.kotlin/
+local.properties
+.idea/
+*.iml
+captures/
+.DS_Store

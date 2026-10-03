@@ -1,0 +1,67 @@
+package io.github.intramuros.weatherbuddy.core
+
+/**
+ * Art styles and the layer stack that turns a scene + outfit into a picture.
+ *
+ * Every style ships the same set of transparent PNG layers with a 9:20 aspect
+ * ratio at `<style>/<category>/<slug>.png`, so switching style only swaps the
+ * folder.
+ */
+enum class Style(
+    val slug: String,
+    val displayName: String,
+    /** Scale layers with nearest-neighbour instead of smoothing, to keep pixels crisp. */
+    val pixelated: Boolean = false,
+) {
+    PIXEL_ART("pixel-art", "Pixel art", pixelated = true),
+    UKIYO_E("ukiyo-e", "Ukiyo-e"),
+    DELFTS_BLAUW("delfts-blauw", "Delfts Blauw"),
+    ;
+
+    private fun layer(category: String, slug: String) = "${this.slug}/$category/$slug.png"
+
+    private fun background(sky: Sky, time: TimeOfDay) = layer("background", "${sky.slug}-${time.slug}")
+
+    private fun windFx(wind: Wind) = layer("fx", "wind-${wind.slug}")
+
+    /** Asset paths to draw, bottom-most first. */
+    fun layers(scene: Scene, outfit: Outfit): List<String> = buildList {
+        val precipitation = layer("fx", scene.precipitation.slug).takeIf { scene.precipitation != Precipitation.NONE }
+        // Under an open umbrella the rain falls behind the buddy.
+        val rainBehind = outfit.has(Accessory.UMBRELLA)
+
+        add(background(scene.sky, scene.timeOfDay))
+        if (rainBehind) addIfNotNull(precipitation)
+        add(layer("body", "base"))
+        add(layer("face", outfit.expression.slug))
+        add(layer("bottom", outfit.bottom.slug))
+        add(layer("footwear", outfit.footwear.slug))
+        add(layer("top", outfit.top.slug))
+        outfit.outerwear?.let { add(layer("outerwear", it.slug)) }
+        outfit.accessories.forEach { add(layer("accessory", it.slug)) }
+        if (!rainBehind) addIfNotNull(precipitation)
+        if (scene.wind != Wind.CALM) add(windFx(scene.wind))
+    }
+
+    /** Every asset path this style's asset pack must contain. */
+    fun requiredAssets(): List<String> = buildList {
+        Sky.entries.forEach { sky -> TimeOfDay.entries.forEach { time -> add(background(sky, time)) } }
+        add(layer("body", "base"))
+        Expression.entries.forEach { add(layer("face", it.slug)) }
+        Bottom.entries.forEach { add(layer("bottom", it.slug)) }
+        Footwear.entries.forEach { add(layer("footwear", it.slug)) }
+        Top.entries.forEach { add(layer("top", it.slug)) }
+        Outerwear.entries.forEach { add(layer("outerwear", it.slug)) }
+        Accessory.entries.forEach { add(layer("accessory", it.slug)) }
+        Precipitation.entries.filter { it != Precipitation.NONE }.forEach { add(layer("fx", it.slug)) }
+        Wind.entries.filter { it != Wind.CALM }.forEach { add(windFx(it)) }
+    }
+
+    companion object {
+        fun fromSlug(slug: String?): Style? = entries.firstOrNull { it.slug == slug }
+    }
+}
+
+private fun <T> MutableList<T>.addIfNotNull(item: T?) {
+    if (item != null) add(item)
+}

@@ -13,30 +13,36 @@ set as the home and/or lock screen wallpaper. The art style can be changed.
 | Image production | **Layered assets** composited on the device (offline, free, consistent character) |
 | Forecast | Open-Meteo using KNMI HARMONIE (`models=knmi_seamless`) |
 | Rain nowcast | Buienradar `raintext` (2 h ahead, 5-minute steps) |
-| Shared logic | Rust crate `weather-core` (this repo, `core/`), exposed to Kotlin with UniFFI |
+| Language | **Kotlin** throughout. Pure logic sits in a plain Kotlin module (`core/`), so it can become Kotlin Multiplatform if iOS ever happens. |
+| Location | Coarse, read only while the app is open, rounded to ~1 km. No background-location permission; the background refresh reuses the last saved location (default: De Bilt). |
 
 ## Architecture
 
 ```
-┌──────────────── Android (Kotlin) ────────────────┐
-│ WorkManager (every 30 min + on unlock)           │
-│   ├─ location (coarse is enough)                 │
-│   ├─ HTTP GET Open-Meteo + Buienradar            │
-│   ├─ weather-core::plan(conditions, style) ──────┼──► Rust (UniFFI)
-│   ├─ stack PNG layers → Bitmap                   │
-│   └─ publish:                                    │
-│        • Glance widget                           │
-│        • WallpaperManager FLAG_SYSTEM / FLAG_LOCK │
-│ Settings screen: style picker, targets, refresh  │
-└──────────────────────────────────────────────────┘
+core/                  pure Kotlin/JVM, no Android
+  OpenMeteo, Buienradar  URLs + response parsers → Conditions
+  Scene, Outfit          weather → sky/precipitation/wind + clothes/expression
+  Style, RenderPlan      → ordered list of asset paths per style
+
+app/                   Android (Compose, Glance, WorkManager, DataStore)
+  RefreshWorker          every 30 min while online
+  Refresher              fetch → plan → Compositor → save images
+                         → update widget → set wallpaper if enabled and changed
+  Compositor             stacks assets/styles/<style>/… into a Bitmap
+  WeatherWidget          Glance widget showing the last picture + temperature
+  MainActivity           preview, style picker, wallpaper switches, location, credits
+
+tools/placeholders/    generates simple placeholder art for every layer
 ```
 
-`weather-core` has no networking and no I/O. It turns API responses into
+`core` has no networking and no I/O. It turns API responses into
 `Conditions`, `Conditions` into a `Scene` (sky, precipitation, day/night,
 wind) and an `Outfit` (clothes, accessories, facial expression), and those
-into an ordered list of asset paths. That keeps every decision unit-testable.
-Compositing could later move into Rust (the `image` crate) if we want
-identical output on iOS.
+into an ordered list of asset paths. That keeps every decision unit-testable
+on the JVM without an emulator.
+
+The wallpaper is only re-set when the picture actually changes (style, layers
+or screen size), so a refresh every 30 minutes doesn't cause flicker.
 
 ## Weather sources
 
@@ -88,15 +94,19 @@ draw exists in that list and that nothing in the list is unreachable.
 <style>/fx/wind-<breezy|stormy>.png
 ```
 
-That is 45 images per style. Every layer is a transparent PNG on the **same
-canvas**, so compositing is just stacking with no offsets.
+That is 45 images per style. Every layer is a transparent PNG with the **same
+9:20 aspect ratio and size within a style**, so compositing is just stacking
+with no offsets. The app scales layers to cover the target and crops around
+the buddy: a tall wallpaper shows everything, and a square widget shows the
+buddy with a bit of sky.
 
-- Canvas: **1080 × 2400** portrait, which fits wallpapers on most phones.
-  The character sits in the lower-middle "safe area" so the clock and lock
-  screen widgets don't cover the face. Widgets use a centred crop.
-- **Pixel art** is drawn at **135 × 300** and upscaled ×8 with
-  nearest-neighbour scaling, which keeps pixels crisp. The palette is
-  limited (≈ 32 colours).
+- Layout: the character stands in the lower-middle, from about 47 % to 87 %
+  of the height. The ground line is at 87 %. The top of the picture stays
+  free for the lock-screen clock.
+- **Pixel art** is drawn at **135 × 300** and shipped at that size. The app
+  scales it up with nearest-neighbour scaling, which keeps pixels crisp. The
+  palette is limited (≈ 32 colours).
+- Other styles: draw at **1080 × 2400** or larger.
 - **Ukiyo-e:** flat colour areas, bold outlines and a woodblock paper
   texture in the background layer. Rain is drawn as Hiroshige-style
   diagonal lines. Prussian blue, vermilion and ochre.
@@ -107,9 +117,11 @@ canvas**, so compositing is just stacking with no offsets.
 
 ## Roadmap
 
-1. ✅ `weather-core`: parsing, scene, outfit and layer plan, with tests
-2. Android shell: Kotlin + Gradle, UniFFI bindings, WorkManager fetch, settings screen
-3. Placeholder asset pack (simple shapes) so the pipeline can be tested end to end
-4. Glance widget + wallpaper / lock screen setter
-5. Real art for the three styles (pixel art first)
-6. Polish: subtle animation in the widget (rain frames), credits screen, more styles
+1. ✅ Core logic: parsing, scene, outfit and layer plan, with tests
+2. ✅ Android shell: refresh worker, settings screen, compositor
+3. ✅ Placeholder asset pack (`./gradlew :tools:placeholders:run`)
+4. ✅ Glance widget + home/lock screen wallpaper
+5. Real art for the three styles (pixel art first). Drop PNGs into
+   `app/src/main/assets/styles/<style>/` with the names above.
+6. Polish: subtle animation in the widget (rain frames), a forecast strip
+   ("rain at 14:45"), more styles, release signing
