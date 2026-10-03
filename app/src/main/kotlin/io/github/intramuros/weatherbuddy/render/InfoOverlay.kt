@@ -244,7 +244,9 @@ internal class SceneLayout(
             ScenePicture.WINDY_MILD -> SceneLayout(160f, 420f, 149f, 169f, 478f, 41f, 738f, 137f, 907f, 259f, 367f, 435f, 47f)
             ScenePicture.WINDY_COOL -> SceneLayout(174f, 419f, 146f, 178f, 483f, 47f, 735f, 133f, 910f, 255f, 364f, 432f, 49f)
             ScenePicture.WINDY_NIGHT_COOL -> SceneLayout(167f, 427f, 156f, 168f, 478f, 44f, 738f, 137f, 908f, 258f, 366f, 433f, 47f)
+            ScenePicture.WINDY_FREEZING -> SceneLayout(217f, 419f, 134f, 183f, 478f, 41f, 738f, 138f, 908f, 258f, 366f, 433f, 46f)
             ScenePicture.WINDY_NIGHT_FREEZING -> SceneLayout(188f, 412f, 140f, 178f, 475f, 41f, 735f, 136f, 904f, 257f, 366f, 433f, 47f)
+            ScenePicture.RAIN_HOT -> SceneLayout(148f, 429f, 150f, 180f, 485f, 43f, 743f, 137f, 907f, 258f, 366f, 433f, 47f)
             ScenePicture.RAIN_WARM -> SceneLayout(162f, 412f, 126f, 166f, 476f, 42f, 747f, 135f, 909f, 257f, 365f, 432f, 46f)
             ScenePicture.RAIN_MILD -> SceneLayout(134f, 425f, 156f, 134f, 493f, 51f, 759f, 142f, 904f, 259f, 365f, 433f, 48f)
             ScenePicture.RAIN_NIGHT_COOL -> SceneLayout(153f, 419f, 145f, 165f, 475f, 41f, 738f, 137f, 909f, 259f, 366f, 434f, 47f)
@@ -255,6 +257,7 @@ internal class SceneLayout(
             ScenePicture.STORM_COLD -> SceneLayout(103f, 397f, 141f, 108f, 452f, 37f, 843f, 137f, 952f, 259f, 348f, 399f, 37f)
             ScenePicture.SNOW_COLD -> SceneLayout(205f, 397f, 126f, 210f, 465f, 40f, 736f, 145f, 884f, 258f, 353f, 416f, 42f)
             ScenePicture.SNOW_FREEZING -> SceneLayout(167f, 411f, 139f, 181f, 466f, 44f, 760f, 132f, 908f, 249f, 352f, 415f, 46f)
+            ScenePicture.SNOW_NIGHT_FREEZING -> SceneLayout(171f, 417f, 135f, 184f, 476f, 43f, 756f, 138f, 907f, 258f, 367f, 432f, 45f)
         }
     }
 }

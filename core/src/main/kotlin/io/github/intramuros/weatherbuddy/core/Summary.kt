@@ -137,7 +137,9 @@ enum class ScenePicture(
     WINDY_MILD("windy-mild", SceneKind.WINDY, Warmth.MILD, TimeOfDay.DAY),
     WINDY_COOL("windy-cool", SceneKind.WINDY, Warmth.COOL, TimeOfDay.DAY),
     WINDY_NIGHT_COOL("windy-night-cool", SceneKind.WINDY, Warmth.COOL, TimeOfDay.NIGHT),
+    WINDY_FREEZING("windy-freezing", SceneKind.WINDY, Warmth.FREEZING, TimeOfDay.DAY),
     WINDY_NIGHT_FREEZING("windy-night-freezing", SceneKind.WINDY, Warmth.FREEZING, TimeOfDay.NIGHT),
+    RAIN_HOT("rain-hot", SceneKind.RAIN, Warmth.HOT),
     RAIN_WARM("rain-warm", SceneKind.RAIN, Warmth.WARM, TimeOfDay.DAY),
     RAIN_MILD("rain-mild", SceneKind.RAIN, Warmth.MILD),
     RAIN_NIGHT_COOL("rain-night-cool", SceneKind.RAIN, Warmth.COOL, TimeOfDay.NIGHT),
@@ -147,7 +149,8 @@ enum class ScenePicture(
     STORM_COOL("storm-cool", SceneKind.STORM, Warmth.COOL),
     STORM_COLD("storm-cold", SceneKind.STORM, Warmth.COLD),
     SNOW_COLD("snow-cold", SceneKind.SNOW, Warmth.COLD),
-    SNOW_FREEZING("snow-freezing", SceneKind.SNOW, Warmth.FREEZING),
+    SNOW_FREEZING("snow-freezing", SceneKind.SNOW, Warmth.FREEZING, TimeOfDay.DAY),
+    SNOW_NIGHT_FREEZING("snow-night-freezing", SceneKind.SNOW, Warmth.FREEZING, TimeOfDay.NIGHT),
     ;
 
     companion object {
