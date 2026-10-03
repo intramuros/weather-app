@@ -14,8 +14,21 @@ android {
         applicationId = "io.github.intramuros.weatherbuddy"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        // CI passes its run number so every build installs as an update.
+        versionCode = providers.environmentVariable("VERSION_CODE").map(String::toInt).getOrElse(1)
+        versionName = "0.2.$versionCode"
+    }
+
+    signingConfigs {
+        // A shared, committed debug key: builds from CI, Android Studio and the command
+        // line all carry the same signature, so a new build installs over the old one.
+        // Not for a store release, which needs a private key.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     compileOptions {

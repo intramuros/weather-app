@@ -1,0 +1,50 @@
+name: Android
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Test, lint and build
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+
+      - name: Rename APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk weather-buddy.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weather-buddy-${{ github.run_number }}
+          path: weather-buddy.apk
+
+      # Always available at .../releases/latest/download/weather-buddy.apk
+      - name: Publish as the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest weather-buddy.apk \
+            --target "$GITHUB_SHA" \
+            --title "Latest build (#${{ github.run_number }})" \
+            --notes "Built from \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}. Download weather-buddy.apk on your phone to install or update." \
+            --latest
