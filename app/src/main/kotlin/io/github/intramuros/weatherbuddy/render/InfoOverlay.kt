@@ -8,13 +8,12 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import io.github.intramuros.weatherbuddy.R
+import io.github.intramuros.weatherbuddy.core.Art
 import io.github.intramuros.weatherbuddy.core.CompassPoint
 import io.github.intramuros.weatherbuddy.core.Condition
 import io.github.intramuros.weatherbuddy.core.Conditions
-import io.github.intramuros.weatherbuddy.core.RenderPlan
 import io.github.intramuros.weatherbuddy.core.Scene
 import io.github.intramuros.weatherbuddy.core.ScenePicture
-import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.core.TimeOfDay
 import java.io.FileNotFoundException
 import kotlin.math.roundToInt
@@ -66,10 +65,9 @@ data class WidgetInfo(
 /**
  * Draws [WidgetInfo] onto the widget picture.
  *
- * Whole-scene styles get the picture's own icons (weather, humidity drop, wind)
- * and the text in the spots the artwork left for it ([SceneLayout]). Layered
- * styles get the text in the right-hand part of the picture, next to the buddy.
- * Every line shrinks to fit the space it has.
+ * First the picture's own icons (weather, humidity drop, wind), then the text
+ * in the spots the artwork left for it ([SceneLayout]). Every line shrinks to
+ * fit the space it has.
  */
 internal class InfoOverlay(private val assets: AssetManager) {
     /** A pixel font with where its capitals sit, as fractions of the font size. */
@@ -86,18 +84,9 @@ internal class InfoOverlay(private val assets: AssetManager) {
         PixelFont(Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"), 0.815f, 0.0275f, fakeBold = true)
     }
 
-    fun draw(canvas: Canvas, info: WidgetInfo, plan: RenderPlan, style: Style, width: Int, height: Int) {
-        val picture = plan.picture
-        if (picture != null) {
-            drawOnScene(canvas, info, picture, style, width, height)
-        } else {
-            drawBesideBuddy(canvas, info, style, plan.scene.timeOfDay, width, height)
-        }
-    }
-
-    private fun drawOnScene(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: Style, width: Int, height: Int) {
+    fun draw(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, width: Int, height: Int) {
         val icons = try {
-            assets.open("styles/${style.sceneIcons(picture)}").use { BitmapFactory.decodeStream(it) }
+            assets.open(Art.sceneIcons(picture)).use { BitmapFactory.decodeStream(it) }
         } catch (_: FileNotFoundException) {
             null
         }
@@ -137,56 +126,7 @@ internal class InfoOverlay(private val assets: AssetManager) {
         }
     }
 
-    private fun drawBesideBuddy(canvas: Canvas, info: WidgetInfo, style: Style, time: TimeOfDay, width: Int, height: Int) {
-        val h = height.toFloat()
-        // One pixel of the 300-pixel scene, which is what the shadow is offset by.
-        val unit = maxOf(width, height) / 300f
-        val ink = Ink.of(style, time)
-        val paint = Paint().apply { isAntiAlias = true }
-        val left = width * TEXT_LEFT
-
-        fun text(value: String, x: Float, baseline: Float, size: Float, big: Boolean) {
-            paint.typeface = if (big) Typeface.create(Typeface.SERIF, Typeface.BOLD) else Typeface.SERIF
-            paint.fitText(value, size, width * TEXT_RIGHT - x)
-            ink.shadow?.let {
-                paint.color = it
-                canvas.drawText(value, x + unit, baseline + unit, paint)
-            }
-            paint.color = ink.fill
-            canvas.drawText(value, x, baseline, paint)
-        }
-
-        var baseline = h * 0.16f
-        info.place?.let {
-            text(it, left, baseline, h * 0.06f, big = false)
-            baseline += h * 0.04f
-        }
-        baseline += h * 0.13f
-        text(info.temperature, left, baseline, h * 0.18f, big = true)
-        baseline += h * 0.09f
-        text(info.condition, left, baseline, h * 0.07f, big = false)
-        info.humidity?.let {
-            baseline += h * 0.09f
-            text(it, left, baseline, h * 0.06f, big = false)
-        }
-        baseline += h * 0.08f
-        text(listOfNotNull(info.wind, info.windDirection).joinToString(" "), left, baseline, h * 0.06f, big = false)
-    }
-
-    /** Light text with a dark drop shadow, or dark ink with none on pale daytime paper. */
-    private class Ink(val fill: Int, val shadow: Int?) {
-        companion object {
-            fun of(style: Style, time: TimeOfDay): Ink = when {
-                time == TimeOfDay.NIGHT -> Ink(0xFFF6F2FF.toInt(), 0xC01A162C.toInt())
-                style == Style.DELFTS_BLAUW -> Ink(0xFF1F3C88.toInt(), null)
-                else -> Ink(0xFF1C1C1C.toInt(), null)
-            }
-        }
-    }
-
     private companion object {
-        const val TEXT_LEFT = 0.56f
-        const val TEXT_RIGHT = 0.96f
         val SCENE_TEXT = 0xFFF0F2F8.toInt()
         val SCENE_LABEL = 0xFFBCCAEA.toInt()
 

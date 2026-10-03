@@ -21,7 +21,6 @@
     <string name="condition_snow">Snow</string>
     <string name="condition_hail">Hail</string>
     <string name="condition_thunderstorm">Storm</string>
-    <string name="style">Style</string>
     <string name="show_on">Show on</string>
     <string name="live_wallpaper_description">Your buddy, dressed for the weather, with the rain, snow and wind moving around her</string>
     <string name="live_wallpaper">Animated wallpaper</string>

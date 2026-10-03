@@ -8,7 +8,6 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import io.github.intramuros.weatherbuddy.core.Style
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -26,7 +25,6 @@ data class Location(val latitude: Double, val longitude: Double) {
 }
 
 data class Settings(
-    val style: Style,
     val wallpaperHome: Boolean,
     val wallpaperLock: Boolean,
     /** `null` until the user shares their location; [Location.DEFAULT] is used meanwhile. */
@@ -46,7 +44,6 @@ class SettingsRepository(context: Context) {
         val lat = prefs[LATITUDE]
         val lon = prefs[LONGITUDE]
         Settings(
-            style = Style.fromSlug(prefs[STYLE]) ?: Style.PIXEL_ART,
             wallpaperHome = prefs[WALLPAPER_HOME] ?: false,
             wallpaperLock = prefs[WALLPAPER_LOCK] ?: false,
             location = if (lat != null && lon != null) Location(lat, lon) else null,
@@ -56,8 +53,6 @@ class SettingsRepository(context: Context) {
     }
 
     suspend fun current(): Settings = settings.first()
-
-    suspend fun setStyle(style: Style) = store.edit { it[STYLE] = style.slug }
 
     suspend fun setWallpaperHome(enabled: Boolean) = store.edit { it[WALLPAPER_HOME] = enabled }
 
@@ -72,7 +67,6 @@ class SettingsRepository(context: Context) {
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }
 
     private companion object {
-        val STYLE = stringPreferencesKey("style")
         val WALLPAPER_HOME = booleanPreferencesKey("wallpaper_home")
         val WALLPAPER_LOCK = booleanPreferencesKey("wallpaper_lock")
         val LATITUDE = doublePreferencesKey("latitude")

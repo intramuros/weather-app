@@ -9,13 +9,11 @@ import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
 import io.github.intramuros.weatherbuddy.core.RenderPlan
-import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.Settings
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
 import io.github.intramuros.weatherbuddy.data.WeatherStore
-import io.github.intramuros.weatherbuddy.render.Compositor
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import kotlinx.coroutines.Dispatchers
@@ -30,8 +28,6 @@ data class UiState(
     val settings: Settings? = null,
     val snapshot: WeatherSnapshot? = null,
     val preview: Bitmap? = null,
-    /** The current weather drawn in every style, for the style picker. */
-    val thumbnails: Map<Style, Bitmap> = emptyMap(),
     /** Draws the animated preview. */
     val live: LiveRenderer? = null,
     /** Whether our animated wallpaper is the current home screen wallpaper. */
@@ -58,11 +54,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 refreshNow(fetch = age == null || age > STALE_AFTER_MS)
             }
         }
-    }
-
-    fun selectStyle(style: Style) = viewModelScope.launch {
-        settingsRepo.setStyle(style)
-        refreshNow(fetch = false)
     }
 
     fun setWallpaperHome(enabled: Boolean) = viewModelScope.launch {
@@ -106,22 +97,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private suspend fun loadFromDisk() {
         val (snapshot, preview) = withContext(Dispatchers.IO) { store.loadSnapshot() to store.loadPreview() }
-        val style = settingsRepo.current().style
-        val (thumbnails, live) = snapshot?.let { snap ->
-            withContext(Dispatchers.Default) {
-                val compositor = Compositor(app.assets)
-                val thumbnails = Style.entries.associateWith {
-                    compositor.render(RenderPlan.plan(snap.conditions, it), it, THUMB_WIDTH, THUMB_HEIGHT)
-                }
-                thumbnails to LiveRenderer(app.assets, RenderPlan.plan(snap.conditions, style), style)
-            }
-        } ?: (emptyMap<Style, Bitmap>() to null)
-        _state.update { it.copy(snapshot = snapshot, preview = preview, thumbnails = thumbnails, live = live) }
+        val live = snapshot?.let { snap ->
+            withContext(Dispatchers.Default) { LiveRenderer(app.assets, RenderPlan.plan(snap.conditions)) }
+        }
+        _state.update { it.copy(snapshot = snapshot, preview = preview, live = live) }
     }
 
     private companion object {
         const val STALE_AFTER_MS = 15 * 60 * 1000L
-        const val THUMB_WIDTH = 216
-        const val THUMB_HEIGHT = 480
     }
 }

@@ -10,7 +10,7 @@ import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import io.github.intramuros.weatherbuddy.WeatherUpdates
-import io.github.intramuros.weatherbuddy.core.Style
+import io.github.intramuros.weatherbuddy.core.Art
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.work.RefreshWorker
 import kotlinx.coroutines.Dispatchers
@@ -20,7 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * The animated wallpaper. Draws only while visible, at the style's frame rate
+ * The animated wallpaper. Draws only while visible, at the art's frame rate
  * (lower in battery saver), and picks up new weather as soon as the
  * background refresh has it.
  */
@@ -31,7 +31,6 @@ class BuddyWallpaperService : WallpaperService() {
         private val scope = MainScope()
         private val startNanos = System.nanoTime()
         private var renderer: LiveRenderer? = null
-        private var style: Style? = null
         private var visible = false
         private var width = 0
         private var height = 0
@@ -45,14 +44,12 @@ class BuddyWallpaperService : WallpaperService() {
         }
 
         private suspend fun reload() {
-            val current = WeatherUpdates.currentPlan(this@BuddyWallpaperService)
-            if (current == null) {
+            val plan = WeatherUpdates.currentPlan(this@BuddyWallpaperService)
+            if (plan == null) {
                 RefreshWorker.runOnce(this@BuddyWallpaperService)
                 return
             }
-            val (plan, newStyle) = current
-            renderer = withContext(Dispatchers.Default) { LiveRenderer(assets, plan, newStyle) }
-            style = newStyle
+            renderer = withContext(Dispatchers.Default) { LiveRenderer(assets, plan) }
             drawFrame()
         }
 
@@ -88,7 +85,7 @@ class BuddyWallpaperService : WallpaperService() {
         }
 
         private fun frameDelayMs(): Long {
-            val fps = style?.fps ?: 12
+            val fps = Art.FPS
             val powerSave = getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
             return 1000L / (if (powerSave) minOf(fps, 6) else fps)
         }

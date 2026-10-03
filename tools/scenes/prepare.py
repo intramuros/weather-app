@@ -1,10 +1,10 @@
-"""Turns the finished scene pictures in source/ into the pixel-art asset pack.
+"""Turns the finished scene pictures in source/ into the app's assets.
 
 Pictures are named <sky>-<warmth>, matching ScenePicture in core/.
 
 Each source is a widget mock-up: a square scene inside a rounded frame, with
 icons and example text drawn on it. For every picture this writes, to
-app/src/main/assets/styles/pixel-art/scene/:
+app/src/main/assets/scenes/:
 
   <name>.webp        the scene with the frame, icons and text removed
                      (used as the wallpaper, and under the widget)
@@ -29,7 +29,7 @@ from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = Path(__file__).resolve().parent / "source"
-OUT = ROOT / "app/src/main/assets/styles/pixel-art/scene"
+OUT = ROOT / "app/src/main/assets/scenes"
 SIZE = 1200  # output size; the boxes below are in these units
 GRID = 10  # the art's pixel size at SIZE
 INSET = 6  # trims the frame's anti-aliased edge

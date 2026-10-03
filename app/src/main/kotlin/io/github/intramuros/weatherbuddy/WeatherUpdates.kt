@@ -2,8 +2,6 @@ package io.github.intramuros.weatherbuddy
 
 import android.content.Context
 import io.github.intramuros.weatherbuddy.core.RenderPlan
-import io.github.intramuros.weatherbuddy.core.Style
-import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,10 +17,9 @@ object WeatherUpdates {
 
     fun notifyChanged() = _version.update { it + 1 }
 
-    /** The plan for the last known weather in the chosen style, or `null` before the first fetch. */
-    suspend fun currentPlan(context: Context): Pair<RenderPlan, Style>? {
-        val style = SettingsRepository(context).current().style
+    /** The plan for the last known weather, or `null` before the first fetch. */
+    suspend fun currentPlan(context: Context): RenderPlan? {
         val snapshot = withContext(Dispatchers.IO) { WeatherStore(context).loadSnapshot() } ?: return null
-        return RenderPlan.plan(snapshot.conditions, style) to style
+        return RenderPlan.plan(snapshot.conditions)
     }
 }

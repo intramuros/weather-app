@@ -16,4 +16,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "weather-buddy"
 
-include(":core", ":app", ":tools:placeholders")
+include(":core", ":app", ":tools:preview")

@@ -44,7 +44,7 @@ enum class Condition {
     }
 }
 
-/** How warm it feels, in the bands the buddy's outfits follow (see [Outfit.dress]). */
+/** How warm it feels, in the bands the buddy's outfits in the [ScenePicture]s follow. */
 enum class Warmth {
     FREEZING,
     COLD,
@@ -111,8 +111,8 @@ enum class SceneKind {
 }
 
 /**
- * Finished pictures for styles drawn as whole scenes (see [Style.wholeScenes]),
- * each with the girl dressed for one kind of weather and one [Warmth].
+ * The finished pictures (see [Art]), each with the girl dressed for one kind
+ * of weather and one [Warmth].
  */
 enum class ScenePicture(
     val slug: String,

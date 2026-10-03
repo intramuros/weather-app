@@ -9,41 +9,29 @@ import kotlin.math.sin
  * The pipeline is pure and offline-testable:
  * 1. The app fetches JSON/text from the weather APIs and turns it into
  *    [Conditions] with [OpenMeteo] and [Buienradar].
- * 2. [plan] decides what the scene looks like and how the buddy is dressed.
- * 3. [layers] is the stack the app draws bottom-to-top: [stillLayers] for a
- *    still picture, or sprites and particles over time for the live wallpaper.
+ * 2. [plan] decides what the scene looks like and which [ScenePicture] shows it.
+ * 3. The app draws [picture] on its own for a still picture, or with
+ *    [particles] moving over it for the live wallpaper.
  */
 data class RenderPlan(
     val scene: Scene,
-    val outfit: Outfit,
-    val layers: List<Layer>,
-    /** The finished scene shown, for [Style.wholeScenes] styles. */
-    val picture: ScenePicture?,
+    val picture: ScenePicture,
+    /** Rain, snow, hail and wind, drawn in this order. Empty when it's dry and calm. */
+    val particles: List<ParticleSpec>,
     /**
-     * Art is drawn with the wind blowing to the right; when the real wind blows
-     * to the west, layered art is mirrored so her hair follows it. Finished
-     * pictures are never mirrored: they are composed (and their widget text
-     * placed) one way round.
+     * Whether the particles blow to the left. The picture itself is never
+     * mirrored: it is composed (and its widget text placed) one way round.
      */
-    val mirrored: Boolean,
-    /** Whether rain, snow and wind particles blow to the left. */
     val particlesMirrored: Boolean,
 ) {
-    val stillLayers: List<String> get() = layers.mapNotNull { it.still }
-
     companion object {
-        fun plan(conditions: Conditions, style: Style): RenderPlan {
+        fun plan(conditions: Conditions): RenderPlan {
             val scene = Scene.from(conditions)
-            val outfit = Outfit.dress(conditions, scene)
-            val picture = if (style.wholeScenes) ScenePicture.choose(conditions, scene) else null
-            val west = blowsWest(conditions, scene)
             return RenderPlan(
                 scene = scene,
-                outfit = outfit,
-                layers = style.layers(scene, outfit, conditions, picture),
-                picture = picture,
-                mirrored = west && !style.wholeScenes,
-                particlesMirrored = west,
+                picture = ScenePicture.choose(conditions, scene),
+                particles = listOfNotNull(ParticleSpec.precipitation(scene, conditions)) + ParticleSpec.wind(scene, conditions),
+                particlesMirrored = blowsWest(conditions, scene),
             )
         }
 
