@@ -13,7 +13,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Fetches current conditions from Open-Meteo plus the Buienradar rain nowcast. */
+/** Fetches current conditions and the coming days from Open-Meteo, plus the Buienradar rain nowcast. */
 object WeatherClient {
     private const val TAG = "WeatherClient"
     private const val TIMEOUT_MS = 10_000
@@ -36,7 +36,7 @@ object WeatherClient {
                     emptyList()
                 }
             }
-            val conditions = OpenMeteo.parseCurrent(get(OpenMeteo.currentUrl(location.latitude, location.longitude)))
+            val conditions = OpenMeteo.parse(get(OpenMeteo.forecastUrl(location.latitude, location.longitude)))
             conditions.copy(rainNowcast = nowcast.await())
         }
     }

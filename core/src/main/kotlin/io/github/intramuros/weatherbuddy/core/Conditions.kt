@@ -26,6 +26,8 @@ data class Conditions(
     val precipitationMm: Double,
     /** Radar-based rain forecast for the next ~2 hours (Buienradar), in time order. */
     val rainNowcast: List<RainStep> = emptyList(),
+    /** Today and the coming days, in date order. Empty in snapshots saved before it was fetched. */
+    val forecast: List<DayForecast> = emptyList(),
 ) {
     /** Rain intensity right now according to the radar nowcast, if we have one. */
     val rainNowMmH: Double? get() = rainNowcast.firstOrNull()?.mmPerHour
@@ -43,3 +45,17 @@ data class Conditions(
 /** One 5-minute step of the rain forecast. */
 @Serializable
 data class RainStep(val hour: Int, val minute: Int, val mmPerHour: Double)
+
+/** One day of the model forecast. */
+@Serializable
+data class DayForecast(
+    /** The local date, as `yyyy-MM-dd`. */
+    val date: String,
+    /** WMO weather interpretation code for the day as a whole. */
+    val weatherCode: Int,
+    val minC: Double,
+    val maxC: Double,
+    /** Total over the day, in mm. */
+    val precipitationMm: Double,
+    val windGustsMaxKmh: Double,
+)

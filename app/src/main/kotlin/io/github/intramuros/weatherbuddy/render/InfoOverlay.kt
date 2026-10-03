@@ -8,6 +8,7 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.Typeface
 import io.github.intramuros.weatherbuddy.R
+import io.github.intramuros.weatherbuddy.labelRes
 import io.github.intramuros.weatherbuddy.core.CompassPoint
 import io.github.intramuros.weatherbuddy.core.Condition
 import io.github.intramuros.weatherbuddy.core.Conditions
@@ -41,25 +42,11 @@ data class WidgetInfo(
         fun from(context: Context, conditions: Conditions, scene: Scene, place: String?) = WidgetInfo(
             place = place,
             temperature = "${conditions.temperatureC.roundToInt()}°",
-            condition = context.getString(label(Condition.of(scene), scene.timeOfDay)),
+            condition = context.getString(Condition.of(scene).labelRes(scene.timeOfDay)),
             humidity = conditions.humidityPercent?.let { context.getString(R.string.humidity, it.roundToInt()) },
             wind = context.getString(R.string.wind_speed, conditions.windSpeedKmh.roundToInt()),
             windDirection = conditions.windDirectionDeg?.let { CompassPoint.fromDegrees(it).name },
         )
-
-        private fun label(condition: Condition, time: TimeOfDay) = when (condition) {
-            Condition.CLEAR -> if (time == TimeOfDay.DAY) R.string.condition_sunny else R.string.condition_clear
-            Condition.PARTLY_CLOUDY -> R.string.condition_partly_cloudy
-            Condition.CLOUDY -> R.string.condition_cloudy
-            Condition.FOG -> R.string.condition_fog
-            Condition.DRIZZLE -> R.string.condition_drizzle
-            Condition.RAIN -> R.string.condition_rain
-            Condition.HEAVY_RAIN -> R.string.condition_heavy_rain
-            Condition.SNOW -> R.string.condition_snow
-            Condition.HAIL -> R.string.condition_hail
-            Condition.THUNDERSTORM -> R.string.condition_thunderstorm
-            Condition.WINDY -> R.string.condition_windy
-        }
     }
 }
 

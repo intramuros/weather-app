@@ -39,7 +39,8 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
                          condition, humidity, wind
   WeatherWidget          Glance widget showing the last picture, with a refresh
                          button in the bottom-right corner
-  MainActivity           preview, style picker, wallpaper switches, location, credits
+  MainActivity           preview, forecast for the coming days, style picker,
+                         wallpaper switches, location, credits
 
 tools/placeholders/    generates placeholder art for the layered styles (`run`)
                        and animated GIF previews of the live wallpaper (`preview`)
@@ -87,7 +88,7 @@ or screen size), so a refresh every 30 minutes doesn't cause flicker.
 
 | Source | Used for | Key | Terms |
 |---|---|---|---|
-| Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
+| Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV; per day for 5 days: weather code, high/low, rain total, strongest gust | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
 | Buienradar `gpsgadget.buienradar.nl/data/raintext` | rain right now + next 2 h | none | Free if we credit buienradar.nl with a link. Show this in the app's About/credits. |
 | *Fallbacks* | | | |
 | KNMI Data Platform | official open data (CC-BY 4.0) | free key | Raw NetCDF/HDF5, so better processed on a server |
