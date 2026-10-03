@@ -63,9 +63,10 @@ data class WidgetInfo(
  * pictures keep clear: temperature and condition on the left, place, humidity
  * and wind on the right. Every line shrinks to fit the space it has.
  *
- * The smaller lines are drawn [SMALL_TEXT_SCALE] times as large as the
- * mock-ups had them, to be readable on a phone. The temperature keeps its size:
- * it already fills the room under the weather icon.
+ * Every line but the temperature is drawn larger than the mock-ups had it, to
+ * be readable on a phone ([VALUES_SCALE]). Over the icons, the temperature
+ * already fills the room under the weather icon, which leaves the condition
+ * below it room for only [LABEL_SCALE].
  */
 internal class InfoOverlay(private val assets: AssetManager) {
     /** A pixel font with where its capitals sit, as fractions of the font size. */
@@ -119,8 +120,8 @@ internal class InfoOverlay(private val assets: AssetManager) {
         }
 
         with(layout) {
-            val labelSize = labelCap * SMALL_TEXT_SCALE
-            val smallSize = smallCap * SMALL_TEXT_SCALE
+            val labelSize = labelCap * LABEL_SCALE
+            val smallSize = smallCap * VALUES_SCALE
             // Humidity and wind grow both ways, to stay centred on their icons; the
             // direction moves down with the wind line above it.
             val growth = smallSize - smallCap
@@ -158,20 +159,20 @@ internal class InfoOverlay(private val assets: AssetManager) {
         }
 
         text(info.temperature, margin, h * 0.19f, h * 0.17f, bold = true)
-        text(info.condition, margin, h * 0.27f, h * 0.055f * SMALL_TEXT_SCALE, bold = false)
+        text(info.condition, margin, h * 0.31f, h * 0.055f * VALUES_SCALE, bold = false)
 
         val right = w - margin
-        var baseline = h * 0.1f
+        var baseline = h * 0.12f
         info.place?.let {
-            text(it, right, baseline, h * 0.05f * SMALL_TEXT_SCALE, bold = true, alignRight = true)
-            baseline += h * 0.065f * SMALL_TEXT_SCALE
+            text(it, right, baseline, h * 0.05f * VALUES_SCALE, bold = true, alignRight = true)
+            baseline += h * 0.065f * VALUES_SCALE
         }
         info.humidityLabelled?.let {
-            text(it, right, baseline, h * 0.045f * SMALL_TEXT_SCALE, bold = false, alignRight = true)
-            baseline += h * 0.06f * SMALL_TEXT_SCALE
+            text(it, right, baseline, h * 0.045f * VALUES_SCALE, bold = false, alignRight = true)
+            baseline += h * 0.06f * VALUES_SCALE
         }
         val wind = listOfNotNull(info.wind, info.windDirection).joinToString(" ")
-        text(wind, right, baseline, h * 0.045f * SMALL_TEXT_SCALE, bold = false, alignRight = true)
+        text(wind, right, baseline, h * 0.045f * VALUES_SCALE, bold = false, alignRight = true)
     }
 
     private companion object {
@@ -181,8 +182,11 @@ internal class InfoOverlay(private val assets: AssetManager) {
         val SCENE_TEXT = 0xFFF0F2F8.toInt()
         val SCENE_LABEL = 0xFFBCCAEA.toInt()
 
-        /** How much larger than in the mock-ups the lines besides the temperature are. */
-        const val SMALL_TEXT_SCALE = 1.25f
+        /** How much larger than in the mock-ups the condition under the temperature is. */
+        const val LABEL_SCALE = 1.25f
+
+        /** How much larger than in the mock-ups the place, humidity and wind are, and in the sky the condition. */
+        const val VALUES_SCALE = 1.5f
 
         /** Sets the text size, shrinking it until [text] fits [maxWidth]. */
         fun Paint.fitText(text: String, size: Float, maxWidth: Float) {
