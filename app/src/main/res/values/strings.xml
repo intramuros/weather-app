@@ -9,7 +9,7 @@
     <string name="wind_description">wind %1$s</string>
     <string name="wind_speed">%1$d km/h</string>
     <string name="humidity">%1$d%%</string>
-    <string name="condition_clear">Clear</string>
+    <string name="condition_clear">Clear night</string>
     <string name="condition_sunny">Sunny</string>
     <string name="condition_windy">Windy</string>
     <string name="condition_partly_cloudy">Partly cloudy</string>
