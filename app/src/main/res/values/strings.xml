@@ -9,6 +9,7 @@
     <string name="wind_description">wind %1$s</string>
     <string name="wind_speed">%1$d km/h</string>
     <string name="humidity">%1$d%%</string>
+    <string name="humidity_labelled">Humidity %1$d%%</string>
     <string name="condition_clear">Clear night</string>
     <string name="condition_sunny">Sunny</string>
     <string name="condition_windy">Windy</string>
@@ -21,6 +22,7 @@
     <string name="condition_snow">Snow</string>
     <string name="condition_hail">Hail</string>
     <string name="condition_thunderstorm">Storm</string>
+    <string name="style">Style</string>
     <string name="show_on">Show on</string>
     <string name="live_wallpaper_description">Your buddy, dressed for the weather, with the rain, snow and wind moving around her</string>
     <string name="live_wallpaper">Animated wallpaper</string>

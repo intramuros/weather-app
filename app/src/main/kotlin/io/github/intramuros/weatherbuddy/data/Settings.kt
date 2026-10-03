@@ -8,6 +8,8 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.intramuros.weatherbuddy.core.ScenePicture
+import io.github.intramuros.weatherbuddy.core.Style
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -25,6 +27,8 @@ data class Location(val latitude: Double, val longitude: Double) {
 }
 
 data class Settings(
+    /** Always one of [SettingsRepository.availableStyles]. */
+    val style: Style,
     val wallpaperHome: Boolean,
     val wallpaperLock: Boolean,
     /** `null` until the user shares their location; [Location.DEFAULT] is used meanwhile. */
@@ -40,10 +44,20 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class SettingsRepository(context: Context) {
     private val store = context.applicationContext.dataStore
 
+    /** The styles whose pictures are all in the app, Pixel art first. */
+    val availableStyles: List<Style> by lazy {
+        val assets = context.applicationContext.assets
+        Style.entries.filter { style ->
+            val files = assets.list("scenes/${style.slug}").orEmpty().toSet()
+            ScenePicture.entries.all { style.scene(it).substringAfterLast('/') in files }
+        }
+    }
+
     val settings: Flow<Settings> = store.data.map { prefs ->
         val lat = prefs[LATITUDE]
         val lon = prefs[LONGITUDE]
         Settings(
+            style = Style.fromSlug(prefs[STYLE])?.takeIf { it in availableStyles } ?: Style.PIXEL_ART,
             wallpaperHome = prefs[WALLPAPER_HOME] ?: false,
             wallpaperLock = prefs[WALLPAPER_LOCK] ?: false,
             location = if (lat != null && lon != null) Location(lat, lon) else null,
@@ -53,6 +67,8 @@ class SettingsRepository(context: Context) {
     }
 
     suspend fun current(): Settings = settings.first()
+
+    suspend fun setStyle(style: Style) = store.edit { it[STYLE] = style.slug }
 
     suspend fun setWallpaperHome(enabled: Boolean) = store.edit { it[WALLPAPER_HOME] = enabled }
 
@@ -67,6 +83,7 @@ class SettingsRepository(context: Context) {
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }
 
     private companion object {
+        val STYLE = stringPreferencesKey("style")
         val WALLPAPER_HOME = booleanPreferencesKey("wallpaper_home")
         val WALLPAPER_LOCK = booleanPreferencesKey("wallpaper_lock")
         val LATITUDE = doublePreferencesKey("latitude")

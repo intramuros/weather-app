@@ -1,13 +1,16 @@
 package io.github.intramuros.weatherbuddy.preview
 
-import io.github.intramuros.weatherbuddy.core.Art
 import io.github.intramuros.weatherbuddy.core.ArtCanvas
 import io.github.intramuros.weatherbuddy.core.Conditions
 import io.github.intramuros.weatherbuddy.core.ParticleField
 import io.github.intramuros.weatherbuddy.core.RainStep
 import io.github.intramuros.weatherbuddy.core.RenderPlan
+import io.github.intramuros.weatherbuddy.core.Style
+import java.awt.BasicStroke
 import java.awt.Color
 import java.awt.RenderingHints
+import java.awt.geom.Ellipse2D
+import java.awt.geom.Line2D
 import java.awt.geom.Rectangle2D
 import java.awt.image.BufferedImage
 import java.io.File
@@ -30,10 +33,14 @@ import kotlin.math.roundToInt
 fun main(args: Array<String>) {
     val assets = File(args[0])
     val out = File(args[1]).apply { mkdirs() }
-    for ((name, conditions) in SCENARIOS) {
-        val file = File(out, "$name.gif")
-        renderGif(assets, RenderPlan.plan(conditions), file)
-        println("Wrote $file")
+    for (style in Style.entries) {
+        // Styles without pictures yet are skipped.
+        if (!File(assets, "scenes/${style.slug}").isDirectory) continue
+        for ((name, conditions) in SCENARIOS) {
+            val file = File(out, "${style.slug}-$name.gif")
+            renderGif(assets, RenderPlan.plan(conditions), style, file)
+            println("Wrote $file")
+        }
     }
 }
 
@@ -67,19 +74,26 @@ private const val SECONDS = 4.0
 private const val OUT_WIDTH = 270
 private const val OUT_HEIGHT = 600
 
-private fun renderGif(assets: File, plan: RenderPlan, file: File) {
-    val picture = ImageIO.read(File(assets, Art.scene(plan.picture)))
+private fun renderGif(assets: File, plan: RenderPlan, style: Style, file: File) {
+    val picture = ImageIO.read(File(assets, style.scene(plan.picture)))
     val fields = plan.particles.mapIndexed { i, spec -> spec to ParticleField(spec, seed = i + 1L) }
     // Same layout as the wallpaper: the square scene covers the frame, centred.
     val sceneSize = OUT_HEIGHT.toDouble()
     val sceneLeft = (OUT_WIDTH - sceneSize) / 2
 
-    val frames = (0 until (SECONDS * Art.FPS).toInt()).map { n ->
-        val t = n.toDouble() / Art.FPS
+    val fps = style.fps
+    val frames = (0 until (SECONDS * fps).toInt()).map { n ->
+        val t = n.toDouble() / fps
         val frame = BufferedImage(OUT_WIDTH, OUT_HEIGHT, BufferedImage.TYPE_INT_RGB)
         val g = frame.createGraphics()
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF)
+        val interpolation = if (style.pixelated) {
+            RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR
+        } else {
+            RenderingHints.VALUE_INTERPOLATION_BILINEAR
+        }
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation)
+        val aa = if (style.pixelated) RenderingHints.VALUE_ANTIALIAS_OFF else RenderingHints.VALUE_ANTIALIAS_ON
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa)
         g.drawImage(picture, sceneLeft.toInt(), 0, sceneSize.toInt(), sceneSize.toInt(), null)
         if (plan.particlesMirrored) {
             g.translate(OUT_WIDTH / 2.0, 0.0)
@@ -89,23 +103,28 @@ private fun renderGif(assets: File, plan: RenderPlan, file: File) {
         g.translate(sceneLeft, 0.0)
         g.scale(sceneSize / ArtCanvas.SCENE_SIZE, sceneSize / ArtCanvas.SCENE_SIZE)
         for ((spec, field) in fields) {
-            g.color = Color(Art.particleColor(spec.kind), true)
-            // Whole scene pixels, like the app.
+            val look = style.particleLook(spec.kind)
+            g.color = Color(look.argb, true)
+            g.stroke = BasicStroke(look.width.toFloat(), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
             field.forEachAt(t) { x, y, dx, dy ->
-                if (spec.isDot) {
-                    g.fill(Rectangle2D.Double(floor(x), floor(y), spec.size, spec.size))
-                } else {
-                    val steps = maxOf(abs(dx), abs(dy)).roundToInt().coerceAtLeast(1)
-                    for (i in 0..steps) {
-                        g.fill(Rectangle2D.Double(floor(x + dx * i / steps), floor(y + dy * i / steps), 1.0, 1.0))
+                when {
+                    // Pixel art: whole scene pixels, like the app.
+                    style.pixelated && spec.isDot -> g.fill(Rectangle2D.Double(floor(x), floor(y), spec.size, spec.size))
+                    style.pixelated -> {
+                        val steps = maxOf(abs(dx), abs(dy)).roundToInt().coerceAtLeast(1)
+                        for (i in 0..steps) {
+                            g.fill(Rectangle2D.Double(floor(x + dx * i / steps), floor(y + dy * i / steps), 1.0, 1.0))
+                        }
                     }
+                    spec.isDot -> g.fill(Ellipse2D.Double(x, y, spec.size, spec.size))
+                    else -> g.draw(Line2D.Double(x, y, x + dx, y + dy))
                 }
             }
         }
         g.dispose()
         frame
     }
-    writeGif(frames, delayCentiseconds = 100 / Art.FPS, file)
+    writeGif(frames, delayCentiseconds = 100 / fps, file)
 }
 
 private fun writeGif(frames: List<BufferedImage>, delayCentiseconds: Int, file: File) {

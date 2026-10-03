@@ -9,29 +9,26 @@ import android.graphics.RectF
 import android.util.Log
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.withScale
-import io.github.intramuros.weatherbuddy.core.Art
 import io.github.intramuros.weatherbuddy.core.RenderPlan
+import io.github.intramuros.weatherbuddy.core.Style
 import java.io.FileNotFoundException
 
 /**
- * Draws a [RenderPlan]'s picture as a still bitmap: scaled to cover the target,
- * cropped around the buddy, with the widget's [WidgetInfo] on top if given.
+ * Draws a [RenderPlan]'s picture in a [Style] as a still bitmap: scaled to cover
+ * the target, cropped around the buddy, with the widget's [WidgetInfo] on top if given.
  */
 class Compositor(private val assets: AssetManager) {
     private val overlay by lazy { InfoOverlay(assets) }
 
-    /** Scales with nearest-neighbour instead of smoothing, to keep pixels crisp. */
-    internal val pixelPaint = Paint().apply { isFilterBitmap = false }
-
-    fun render(plan: RenderPlan, width: Int, height: Int, info: WidgetInfo? = null): Bitmap {
+    fun render(plan: RenderPlan, style: Style, width: Int, height: Int, info: WidgetInfo? = null): Bitmap {
         val out = createBitmap(width, height)
         val canvas = Canvas(out)
-        load(Art.scene(plan.picture))?.let {
+        load(style.scene(plan.picture))?.let {
             val b = coverBounds(it.width, it.height, width, height)
-            canvas.drawBitmap(it, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), pixelPaint)
+            canvas.drawBitmap(it, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), bitmapPaint(style))
             it.recycle()
         }
-        if (info != null) overlay.draw(canvas, info, plan.picture, width, height)
+        if (info != null) overlay.draw(canvas, info, plan.picture, style, width, height)
         return out
     }
 
@@ -53,6 +50,9 @@ class Compositor(private val assets: AssetManager) {
 
         /** Vertical position of the buddy's middle in the art, as a fraction of its height. */
         const val FOCUS_Y = 0.67f
+
+        /** Pixel art scales with nearest-neighbour instead of smoothing, to keep pixels crisp. */
+        fun bitmapPaint(style: Style) = Paint().apply { isFilterBitmap = !style.pixelated }
 
         /** Draws [block] flipped around the middle of [bounds] when [mirror] is set. */
         inline fun Canvas.mirroredIf(mirror: Boolean, bounds: Bounds, block: Canvas.() -> Unit) {

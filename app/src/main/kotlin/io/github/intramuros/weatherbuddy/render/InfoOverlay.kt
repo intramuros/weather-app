@@ -4,16 +4,18 @@ import android.content.Context
 import android.content.res.AssetManager
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
+import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import io.github.intramuros.weatherbuddy.R
-import io.github.intramuros.weatherbuddy.core.Art
 import io.github.intramuros.weatherbuddy.core.CompassPoint
 import io.github.intramuros.weatherbuddy.core.Condition
 import io.github.intramuros.weatherbuddy.core.Conditions
 import io.github.intramuros.weatherbuddy.core.Scene
 import io.github.intramuros.weatherbuddy.core.ScenePicture
+import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.core.TimeOfDay
 import java.io.FileNotFoundException
 import kotlin.math.roundToInt
@@ -24,6 +26,8 @@ data class WidgetInfo(
     val temperature: String,
     val condition: String,
     val humidity: String?,
+    /** [humidity] with a label, for layouts without a drop icon. */
+    val humidityLabelled: String?,
     val wind: String,
     val windDirection: String?,
 ) {
@@ -42,6 +46,7 @@ data class WidgetInfo(
             temperature = "${conditions.temperatureC.roundToInt()}°",
             condition = context.getString(label(Condition.of(scene), scene.timeOfDay)),
             humidity = conditions.humidityPercent?.let { context.getString(R.string.humidity, it.roundToInt()) },
+            humidityLabelled = conditions.humidityPercent?.let { context.getString(R.string.humidity_labelled, it.roundToInt()) },
             wind = context.getString(R.string.wind_speed, conditions.windSpeedKmh.roundToInt()),
             windDirection = conditions.windDirectionDeg?.let { CompassPoint.fromDegrees(it).name },
         )
@@ -65,9 +70,11 @@ data class WidgetInfo(
 /**
  * Draws [WidgetInfo] onto the widget picture.
  *
- * First the picture's own icons (weather, humidity drop, wind), then the text
- * in the spots the artwork left for it ([SceneLayout]). Every line shrinks to
- * fit the space it has.
+ * Styles with icons ([Style.hasWidgetIcons]) get the picture's own icons
+ * (weather, humidity drop, wind), then the text in the spots the artwork left
+ * for it ([SceneLayout]). Other styles get the text in the sky, which their
+ * pictures keep clear: temperature and condition on the left, place, humidity
+ * and wind on the right. Every line shrinks to fit the space it has.
  */
 internal class InfoOverlay(private val assets: AssetManager) {
     /** A pixel font with where its capitals sit, as fractions of the font size. */
@@ -84,9 +91,13 @@ internal class InfoOverlay(private val assets: AssetManager) {
         PixelFont(Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"), 0.815f, 0.0275f, fakeBold = true)
     }
 
-    fun draw(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, width: Int, height: Int) {
+    fun draw(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: Style, width: Int, height: Int) {
+        if (style.hasWidgetIcons) drawOnIcons(canvas, info, picture, style, width, height) else drawInSky(canvas, info, width, height)
+    }
+
+    private fun drawOnIcons(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: Style, width: Int, height: Int) {
         val icons = try {
-            assets.open(Art.sceneIcons(picture)).use { BitmapFactory.decodeStream(it) }
+            assets.open(style.sceneIcons(picture)).use { BitmapFactory.decodeStream(it) }
         } catch (_: FileNotFoundException) {
             null
         }
@@ -126,7 +137,48 @@ internal class InfoOverlay(private val assets: AssetManager) {
         }
     }
 
+    private fun drawInSky(canvas: Canvas, info: WidgetInfo, width: Int, height: Int) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+        // A soft shade behind the text, fading out before the buddy.
+        val shade = Paint().apply { shader = LinearGradient(0f, 0f, 0f, h * 0.45f, SKY_SHADE, 0, Shader.TileMode.CLAMP) }
+        canvas.drawRect(0f, 0f, w, h * 0.45f, shade)
+
+        val paint = Paint().apply {
+            isAntiAlias = true
+            color = SKY_TEXT
+            setShadowLayer(h * 0.008f, 0f, h * 0.003f, SKY_TEXT_SHADOW)
+        }
+        val margin = w * 0.05f
+        val middle = w * 0.5f
+
+        fun text(value: String, x: Float, baseline: Float, size: Float, bold: Boolean, alignRight: Boolean = false) {
+            paint.typeface = Typeface.create(Typeface.SANS_SERIF, if (bold) Typeface.BOLD else Typeface.NORMAL)
+            paint.textAlign = if (alignRight) Paint.Align.RIGHT else Paint.Align.LEFT
+            paint.fitText(value, size, middle - margin * 1.5f)
+            canvas.drawText(value, x, baseline, paint)
+        }
+
+        text(info.temperature, margin, h * 0.19f, h * 0.17f, bold = true)
+        text(info.condition, margin, h * 0.26f, h * 0.055f, bold = false)
+
+        val right = w - margin
+        var baseline = h * 0.09f
+        info.place?.let {
+            text(it, right, baseline, h * 0.05f, bold = true, alignRight = true)
+            baseline += h * 0.065f
+        }
+        info.humidityLabelled?.let {
+            text(it, right, baseline, h * 0.045f, bold = false, alignRight = true)
+            baseline += h * 0.06f
+        }
+        text(listOfNotNull(info.wind, info.windDirection).joinToString(" "), right, baseline, h * 0.045f, bold = false, alignRight = true)
+    }
+
     private companion object {
+        val SKY_TEXT = 0xFFFFFFFF.toInt()
+        val SKY_TEXT_SHADOW = 0x99000000.toInt()
+        val SKY_SHADE = 0x59000000
         val SCENE_TEXT = 0xFFF0F2F8.toInt()
         val SCENE_LABEL = 0xFFBCCAEA.toInt()
 

@@ -73,8 +73,8 @@ object Refresher {
         val compositor = Compositor(app.assets)
         val info = WidgetInfo.from(app, snapshot.conditions, plan.scene, placeName(app, settings))
         withContext(Dispatchers.Default) {
-            val widget = compositor.render(plan, WIDGET_SIZE, WIDGET_SIZE, info)
-            val preview = compositor.render(plan, PREVIEW_WIDTH, PREVIEW_HEIGHT)
+            val widget = compositor.render(plan, settings.style, WIDGET_SIZE, WIDGET_SIZE, info)
+            val preview = compositor.render(plan, settings.style, PREVIEW_WIDTH, PREVIEW_HEIGHT)
             withContext(Dispatchers.IO) { store.saveImages(widget, preview) }
         }
         WeatherWidget().updateAll(app)
@@ -87,10 +87,10 @@ object Refresher {
         if (flags != 0) {
             val metrics = app.resources.displayMetrics
             val (w, h) = metrics.widthPixels to metrics.heightPixels
-            val key = "$flags|${w}x$h|${plan.picture.slug}"
+            val key = "$flags|${w}x$h|${settings.style.slug}|${plan.picture.slug}"
             if (key != settings.wallpaperKey) {
                 try {
-                    val bitmap = withContext(Dispatchers.Default) { compositor.render(plan, w, h) }
+                    val bitmap = withContext(Dispatchers.Default) { compositor.render(plan, settings.style, w, h) }
                     withContext(Dispatchers.IO) {
                         WallpaperManager.getInstance(app).setBitmap(bitmap, null, true, flags)
                     }

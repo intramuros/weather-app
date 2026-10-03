@@ -39,9 +39,7 @@ class RenderPlanTest {
     fun drawsOnePictureMatchingTheWeather() {
         val snow = RenderPlan.plan(conditions(71, -2.0, 10.0))
         assertEquals(ScenePicture.SNOW_FREEZING, snow.picture)
-        assertEquals("scenes/snow-freezing.webp", Art.scene(snow.picture))
         assertEquals(ScenePicture.STORM_COOL, RenderPlan.plan(conditions(95, 14.0, 40.0)).picture)
-        assertEquals("scenes/storm-cool-icons.webp", Art.sceneIcons(ScenePicture.STORM_COOL))
     }
 
     @Test

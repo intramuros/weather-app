@@ -13,6 +13,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -22,12 +23,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -35,6 +38,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
@@ -67,6 +71,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.intramuros.weatherbuddy.R
+import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
@@ -133,7 +138,7 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
                         bitmap = it.asImageBitmap(),
                         contentDescription = stringResource(R.string.buddy_description),
                         contentScale = ContentScale.Crop,
-                        filterQuality = FilterQuality.None,
+                        filterQuality = if (settings?.style?.pixelated != false) FilterQuality.None else FilterQuality.Low,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -157,6 +162,21 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
             }
 
             if (settings == null) return@Column
+
+            if (state.styles.size > 1) {
+                Text(stringResource(R.string.style), style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    state.styles.forEach { style ->
+                        StyleCard(
+                            style = style,
+                            thumbnail = state.thumbnails[style],
+                            selected = style == settings.style,
+                            onClick = { vm.selectStyle(style) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
 
             Text(stringResource(R.string.show_on), style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -211,6 +231,40 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
 }
 
 @Composable
+private fun StyleCard(
+    style: Style,
+    thumbnail: android.graphics.Bitmap?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        modifier = modifier.selectable(selected = selected, onClick = onClick, role = Role.RadioButton),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Surface(
+            shape = shape,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            border = if (selected) BorderStroke(3.dp, MaterialTheme.colorScheme.primary) else null,
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(9f / 14f),
+        ) {
+            thumbnail?.let {
+                Image(
+                    bitmap = it.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    filterQuality = if (style.pixelated) FilterQuality.None else FilterQuality.Low,
+                )
+            }
+        }
+        Text(style.displayName, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
 private fun SwitchRow(
     label: String,
     checked: Boolean,
@@ -233,7 +287,7 @@ private fun SwitchRow(
     }
 }
 
-/** Runs the same renderer as the wallpaper, stepping at its frame rate. */
+/** Runs the same renderer as the wallpaper, stepping at the style's frame rate. */
 @Composable
 private fun LivePreview(renderer: LiveRenderer, modifier: Modifier = Modifier) {
     var seconds by remember(renderer) { mutableDoubleStateOf(0.0) }

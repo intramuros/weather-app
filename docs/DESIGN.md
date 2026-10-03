@@ -9,7 +9,7 @@ set as the home and/or lock screen wallpaper.
 | Topic | Decision |
 |---|---|
 | Platform | Android first |
-| Art style | **Pixel art** only. (Ukiyo-e and Delfts Blauw, drawn as layers combined on the device, were tried with placeholder art and dropped.) |
+| Art styles | **Pixel art**, and **Anime** once its pictures are in (made with ChatGPT from the pixel-art scenes: `tools/scenes/anime/PROMPTS.md`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw, drawn as layers combined on the device, were tried with placeholder art and dropped.) |
 | Image production | Finished scenes, one per kind of weather and warmth, bundled with the app (offline, free) |
 | Character | A girl on an Amsterdam canal, the same in every scene |
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
@@ -25,23 +25,25 @@ core/                  pure Kotlin/JVM, no Android
   OpenMeteo, Buienradar  URLs + response parsers → Conditions
   Scene                  weather → sky/precipitation/day-night/wind
   ScenePicture, RenderPlan → the picture that fits, plus the particles over it
-  Art                    asset paths, frame rate and particle colours
+  Style                  per style: asset paths, frame rate, particle looks
 
 app/                   Android (Compose, Glance, WorkManager, DataStore)
   RefreshWorker          every 30 min while online
   Refresher              fetch → plan → Compositor → save images
                          → update widget → set wallpaper if enabled and changed
-  Compositor             draws the picture from assets/scenes/ into a Bitmap
+  Compositor             draws the picture from assets/scenes/<style>/ into a Bitmap
   LiveRenderer           draws the plan at any moment: the picture, then the
                          particles for that frame
   BuddyWallpaperService  the animated wallpaper; draws only while visible
   InfoOverlay            draws the widget's icons and text: place, temperature,
                          condition, humidity, wind
   WeatherWidget          Glance widget showing the last picture
-  MainActivity           preview, wallpaper switches, location, credits
+  MainActivity           preview, style picker (once there's a choice), wallpaper
+                         switches, location, credits
 
 tools/preview/         animated GIF previews of the live wallpaper (`run`)
-tools/scenes/          turns the pixel-art scene mock-ups into assets
+tools/scenes/          turns the pixel-art scene mock-ups into assets (`prepare.py`),
+                       and another style's finished pictures (`import_style.py`)
 ```
 
 `core` has no networking and no I/O. It turns API responses into
@@ -60,16 +62,18 @@ screen size), so a refresh every 30 minutes doesn't cause flicker.
   longer and faster drops, wind slants them, and gusts come and go. Snow sways,
   and a storm adds tumbling leaves. `ParticleField` computes every particle's
   position directly from the time, so frames never depend on the ones before
-  and nothing drifts over hours. `Art` sets each kind's colour.
+  and nothing drifts over hours. Each style sets the particle colour and line
+  width.
 - **The girl is painted in**, so only the weather moves, falling over the
   picture.
 - **Wind direction.** Particles are simulated blowing to the right. When the
   real wind blows west (an east wind), they are mirrored. The scenes never
   are: they're composed one way round, and the widget's text positions are
   measured on them.
-- **Frame rate and battery.** 12 fps, or 6 in battery saver. Nothing is drawn
-  while the wallpaper is hidden. Particles snap to the scene's pixel grid, so
-  they look like part of the art.
+- **Frame rate and battery.** Pixel art runs at 12 fps and anime at 24, or 6
+  in battery saver. Nothing is drawn while the wallpaper is hidden. For pixel
+  art, particles snap to the scene's pixel grid, so they look like part of
+  the art; for anime they're smooth, thin lines and dots.
 - Applying a live wallpaper always needs the user to confirm it in the system
   wallpaper screen; the app opens that screen for them. While the animated
   wallpaper is active, the "still picture on home screen" option is ignored so
@@ -135,8 +139,9 @@ picture. Adding a picture for a missing combination (for instance a mild
 foggy day or a cold windy night) makes the match exact.
 
 ```
-scenes/<picture>.webp        the scene, no icons or text (1200 × 1200)
-scenes/<picture>-icons.webp  its weather, drop and wind icons, on transparency
+scenes/pixel-art/<picture>.webp        the scene, no icons or text (1200 × 1200)
+scenes/pixel-art/<picture>-icons.webp  its weather, drop and wind icons, on transparency
+scenes/<other style>/<picture>.webp    the same scene in that style (1200 × 1200)
 ```
 
 The sources are widget mock-ups with example text, in `tools/scenes/source/`,
@@ -151,7 +156,21 @@ OFL, in `assets/fonts/`.
 
 To add a picture: put the mock-up in `tools/scenes/source/`, add its text and
 icon boxes to `prepare.py` and run it, then add a `ScenePicture` entry and
-its `SceneLayout`.
+its `SceneLayout`. Every other style then needs the picture too.
+
+### Other styles
+
+Other styles redraw the pixel-art scenes, keeping each one's sky, outfit and
+layout, so `ScenePicture.choose` works the same for all of them. They have no
+icon layer: the widget writes its text in the sky, which those pictures keep
+clear (temperature and condition top left; place, humidity and wind top
+right, over a soft shade). `tools/scenes/import_style.py` crops, scales and
+converts a folder of finished pictures; it writes nothing until all of them
+are there, and `StyleTest` fails on a half-finished style folder.
+
+To add a style: add a `Style` entry (slug, name, frame rate, particle looks),
+make its 30 pictures, and import them. `tools/scenes/anime/PROMPTS.md` is how
+the anime ones are made.
 
 ## Roadmap
 
@@ -161,7 +180,8 @@ its `SceneLayout`.
 4. ✅ Live wallpaper: particles, wind direction
 5. ✅ CI: tests, lint and an installable APK on every pull request; `master`
    publishes it
-6. ✅ Art: 30 finished pixel-art scenes
+6. ✅ Art: 30 finished pixel-art scenes. Anime: prompts and import ready,
+   pictures to make
 7. ✅ Widget layout: place, temperature, condition, humidity and wind
 8. Polish: rain splashes, a forecast strip ("rain at 14:45"), pictures for
    the missing weather combinations, a private release key for a store

@@ -111,7 +111,7 @@ enum class SceneKind {
 }
 
 /**
- * The finished pictures (see [Art]), each with the girl dressed for one kind
+ * The finished pictures (see [Style]), each with the girl dressed for one kind
  * of weather and one [Warmth].
  */
 enum class ScenePicture(
