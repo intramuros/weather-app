@@ -21,4 +21,6 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    // StyleTest checks the app's pictures, so a changed picture must re-run it.
+    inputs.dir(rootProject.layout.projectDirectory.dir("app/src/main/assets/scenes")).withPropertyName("scenes")
 }

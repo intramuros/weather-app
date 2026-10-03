@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -26,6 +27,7 @@ data class Location(val latitude: Double, val longitude: Double) {
 }
 
 data class Settings(
+    /** Always one of [SettingsRepository.availableStyles]. */
     val style: Style,
     val wallpaperHome: Boolean,
     val wallpaperLock: Boolean,
@@ -42,11 +44,20 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class SettingsRepository(context: Context) {
     private val store = context.applicationContext.dataStore
 
+    /** The styles whose pictures are all in the app, Pixel art first. */
+    val availableStyles: List<Style> by lazy {
+        val assets = context.applicationContext.assets
+        Style.entries.filter { style ->
+            val files = assets.list("scenes/${style.slug}").orEmpty().toSet()
+            ScenePicture.entries.all { style.scene(it).substringAfterLast('/') in files }
+        }
+    }
+
     val settings: Flow<Settings> = store.data.map { prefs ->
         val lat = prefs[LATITUDE]
         val lon = prefs[LONGITUDE]
         Settings(
-            style = Style.fromSlug(prefs[STYLE]) ?: Style.PIXEL_ART,
+            style = Style.fromSlug(prefs[STYLE])?.takeIf { it in availableStyles } ?: Style.PIXEL_ART,
             wallpaperHome = prefs[WALLPAPER_HOME] ?: false,
             wallpaperLock = prefs[WALLPAPER_LOCK] ?: false,
             location = if (lat != null && lon != null) Location(lat, lon) else null,

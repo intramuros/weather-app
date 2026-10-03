@@ -1,7 +1,6 @@
 package io.github.intramuros.weatherbuddy.render
 
 import io.github.intramuros.weatherbuddy.render.Compositor.Companion.FOCUS_Y
-import io.github.intramuros.weatherbuddy.render.Compositor.Companion.buddyBounds
 import io.github.intramuros.weatherbuddy.render.Compositor.Companion.coverBounds
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -34,33 +33,5 @@ class CoverBoundsTest {
     @Test
     fun squareSceneFillsASquareWidget() {
         assertEquals(Compositor.Bounds(0f, 0f, 600f, 600f), coverBounds(300, 300, 600, 600))
-    }
-
-    @Test
-    fun buddyMatchesTheSceneScaleAndStandsAtBuddyX() {
-        val scene = coverBounds(300, 300, 600, 600)
-        val buddy = buddyBounds(135, 300, 600, 600, buddyX = 0.32f)
-        assertEquals(scene.height, buddy.height)
-        assertEquals(scene.top, buddy.top)
-        assertEquals(270f, buddy.width)
-        assertEquals(0.32f * 600, buddy.left + buddy.width / 2, 0.01f)
-    }
-
-    @Test
-    fun wallpaperCentresTheBuddyOnTheScene() {
-        // A 9:20 phone shows the middle 135 of the scene's 300 pixels: exactly the buddy's frame.
-        val scene = coverBounds(300, 300, 1080, 2400)
-        val buddy = buddyBounds(135, 300, 1080, 2400, buddyX = 0.5f)
-        assertEquals(Compositor.Bounds(0f, 0f, 1080f, 2400f), buddy)
-        assertEquals(scene.left + scene.width / 2, buddy.left + buddy.width / 2, 0.01f)
-    }
-
-    @Test
-    fun buddyFollowsTheSceneOnAWideWidget() {
-        val scene = coverBounds(1200, 1200, 600, 300)
-        val buddy = buddyBounds(540, 1200, 600, 300, buddyX = 0.32f)
-        assertEquals(scene.top, buddy.top)
-        assertEquals(scene.height, buddy.height)
-        assertTrue(scene.top < 0f)
     }
 }

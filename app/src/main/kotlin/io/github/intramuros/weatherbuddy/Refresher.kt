@@ -69,11 +69,11 @@ object Refresher {
             store.loadSnapshot()
         } ?: return@withLock RefreshResult.NoData
 
-        val plan = RenderPlan.plan(snapshot.conditions, settings.style)
+        val plan = RenderPlan.plan(snapshot.conditions)
         val compositor = Compositor(app.assets)
         val info = WidgetInfo.from(app, snapshot.conditions, plan.scene, placeName(app, settings))
         withContext(Dispatchers.Default) {
-            val widget = compositor.render(plan, settings.style, WIDGET_SIZE, WIDGET_SIZE, Compositor.WIDGET_BUDDY_X, info)
+            val widget = compositor.render(plan, settings.style, WIDGET_SIZE, WIDGET_SIZE, info)
             val preview = compositor.render(plan, settings.style, PREVIEW_WIDTH, PREVIEW_HEIGHT)
             withContext(Dispatchers.IO) { store.saveImages(widget, preview) }
         }
@@ -87,7 +87,7 @@ object Refresher {
         if (flags != 0) {
             val metrics = app.resources.displayMetrics
             val (w, h) = metrics.widthPixels to metrics.heightPixels
-            val key = "${settings.style.slug}|$flags|${w}x$h|${plan.mirrored}|${plan.stillLayers.joinToString(",")}"
+            val key = "$flags|${w}x$h|${settings.style.slug}|${plan.picture.slug}"
             if (key != settings.wallpaperKey) {
                 try {
                     val bitmap = withContext(Dispatchers.Default) { compositor.render(plan, settings.style, w, h) }

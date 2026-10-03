@@ -88,7 +88,7 @@ class BuddyWallpaperService : WallpaperService() {
         }
 
         private fun frameDelayMs(): Long {
-            val fps = style?.fps ?: 12
+            val fps = style?.fps ?: Style.PIXEL_ART.fps
             val powerSave = getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
             return 1000L / (if (powerSave) minOf(fps, 6) else fps)
         }

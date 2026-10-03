@@ -2,29 +2,13 @@ package io.github.intramuros.weatherbuddy.core
 
 import io.github.intramuros.weatherbuddy.core.Conditions.Companion.RAIN_THRESHOLD_MM_H
 
-enum class Sky(val slug: String) {
-    CLEAR("clear"),
-    PARTLY_CLOUDY("partly-cloudy"),
-    OVERCAST("overcast"),
-    FOG("fog"),
-    THUNDERSTORM("thunderstorm"),
-}
+enum class Sky { CLEAR, PARTLY_CLOUDY, OVERCAST, FOG, THUNDERSTORM }
 
-enum class Precipitation(val slug: String) {
-    NONE("none"),
-    DRIZZLE("drizzle"),
-    RAIN("rain"),
-    HEAVY_RAIN("heavy-rain"),
-    SNOW("snow"),
-    HAIL("hail"),
-    ;
+enum class Precipitation { NONE, DRIZZLE, RAIN, HEAVY_RAIN, SNOW, HAIL }
 
-    val isWet: Boolean get() = this == DRIZZLE || this == RAIN || this == HEAVY_RAIN || this == HAIL
-}
+enum class TimeOfDay { DAY, NIGHT }
 
-enum class TimeOfDay(val slug: String) { DAY("day"), NIGHT("night") }
-
-enum class Wind(val slug: String) { CALM("calm"), BREEZY("breezy"), STORMY("stormy") }
+enum class Wind { CALM, BREEZY, STORMY }
 
 /** What the world around the buddy looks like. */
 data class Scene(

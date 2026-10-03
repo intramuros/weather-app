@@ -158,7 +158,7 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
                         bitmap = it.asImageBitmap(),
                         contentDescription = stringResource(R.string.buddy_description),
                         contentScale = ContentScale.Crop,
-                        filterQuality = if (settings?.style?.pixelated == true) FilterQuality.None else FilterQuality.Low,
+                        filterQuality = if (settings?.style?.pixelated != false) FilterQuality.None else FilterQuality.Low,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }
@@ -184,16 +184,18 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
 
             if (settings == null) return@Column
 
-            Text(stringResource(R.string.style), style = MaterialTheme.typography.titleMedium)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Style.entries.forEach { style ->
-                    StyleCard(
-                        style = style,
-                        thumbnail = state.thumbnails[style],
-                        selected = style == settings.style,
-                        onClick = { vm.selectStyle(style) },
-                        modifier = Modifier.weight(1f),
-                    )
+            if (state.styles.size > 1) {
+                Text(stringResource(R.string.style), style = MaterialTheme.typography.titleMedium)
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    state.styles.forEach { style ->
+                        StyleCard(
+                            style = style,
+                            thumbnail = state.thumbnails[style],
+                            selected = style == settings.style,
+                            onClick = { vm.selectStyle(style) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
             }
 

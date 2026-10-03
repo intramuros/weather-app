@@ -14,48 +14,33 @@ import io.github.intramuros.weatherbuddy.core.Style
 import java.io.FileNotFoundException
 
 /**
- * Stacks a [RenderPlan]'s layers from `assets/styles/` into one bitmap.
- *
- * Scenery layers (and whole-scene pictures) are square and scaled to cover the
- * target, cropped around the buddy. The buddy's layers are a 9:20 frame of the
- * same height, placed at [render]'s `buddyX`: centred on a wallpaper, to the
- * left on the widget so there is room for [WidgetInfo].
+ * Draws a [RenderPlan]'s picture in a [Style] as a still bitmap: scaled to cover
+ * the target, cropped around the buddy, with the widget's [WidgetInfo] on top if given.
  */
 class Compositor(private val assets: AssetManager) {
     private val overlay by lazy { InfoOverlay(assets) }
 
-    fun render(
-        plan: RenderPlan,
-        style: Style,
-        width: Int,
-        height: Int,
-        buddyX: Float = 0.5f,
-        info: WidgetInfo? = null,
-    ): Bitmap {
+    fun render(plan: RenderPlan, style: Style, width: Int, height: Int, info: WidgetInfo? = null): Bitmap {
         val out = createBitmap(width, height)
         val canvas = Canvas(out)
-        val paint = Paint().apply { isFilterBitmap = !style.pixelated }
-        for (path in plan.stillLayers) {
-            val layer = load(path) ?: continue
-            val b = layerBounds(path, layer.width, layer.height, width, height, buddyX)
-            canvas.mirroredIf(plan.mirrored, b) {
-                drawBitmap(layer, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), paint)
-            }
-            layer.recycle()
+        load(style.scene(plan.picture))?.let {
+            val b = coverBounds(it.width, it.height, width, height)
+            canvas.drawBitmap(it, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), bitmapPaint(style))
+            it.recycle()
         }
-        if (info != null) overlay.draw(canvas, info, plan, style, width, height)
+        if (info != null) overlay.draw(canvas, info, plan.picture, style, width, height)
         return out
     }
 
     internal fun load(path: String): Bitmap? =
         try {
-            assets.open("styles/$path").use { BitmapFactory.decodeStream(it) }
+            assets.open(path).use { BitmapFactory.decodeStream(it) }
         } catch (_: FileNotFoundException) {
-            Log.w(TAG, "missing layer $path")
+            Log.w(TAG, "missing picture $path")
             null
         }
 
-    /** Where a layer lands on the target, in target pixels. */
+    /** Where a picture lands on the target, in target pixels. */
     internal data class Bounds(val left: Float, val top: Float, val width: Float, val height: Float) {
         val centerX: Float get() = left + width / 2
     }
@@ -66,20 +51,10 @@ class Compositor(private val assets: AssetManager) {
         /** Vertical position of the buddy's middle in the art, as a fraction of its height. */
         const val FOCUS_Y = 0.67f
 
-        /** Where the buddy stands on the widget, as a fraction of its width. */
-        const val WIDGET_BUDDY_X = 0.32f
+        /** Pixel art scales with nearest-neighbour instead of smoothing, to keep pixels crisp. */
+        fun bitmapPaint(style: Style) = Paint().apply { isFilterBitmap = !style.pixelated }
 
-        fun layerBounds(path: String, srcW: Int, srcH: Int, dstW: Int, dstH: Int, buddyX: Float): Bounds =
-            if (Style.isScenery(path)) {
-                coverBounds(srcW, srcH, dstW, dstH)
-            } else {
-                buddyBounds(srcW, srcH, dstW, dstH, buddyX)
-            }
-
-        /**
-         * Draws [block] flipped around the middle of [bounds] when [mirror] is set. Each layer
-         * flips in place, so the buddy stays where she stands and text drawn later reads normally.
-         */
+        /** Draws [block] flipped around the middle of [bounds] when [mirror] is set. */
         inline fun Canvas.mirroredIf(mirror: Boolean, bounds: Bounds, block: Canvas.() -> Unit) {
             if (mirror) withScale(-1f, 1f, bounds.centerX, 0f) { block() } else block()
         }
@@ -94,16 +69,6 @@ class Compositor(private val assets: AssetManager) {
             val h = srcH * scale
             val top = (dstH / 2f - FOCUS_Y * h).coerceIn(dstH - h, 0f)
             return Bounds((dstW - w) / 2, top, w, h)
-        }
-
-        /**
-         * The buddy's frame at the same scale and height as the square scene it stands
-         * in, with its middle at [buddyX] of the target's width.
-         */
-        fun buddyBounds(srcW: Int, srcH: Int, dstW: Int, dstH: Int, buddyX: Float): Bounds {
-            val scene = coverBounds(srcH, srcH, dstW, dstH)
-            val w = scene.height * srcW / srcH
-            return Bounds(dstW * buddyX - w / 2, scene.top, w, scene.height)
         }
     }
 }

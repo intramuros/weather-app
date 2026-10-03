@@ -19,10 +19,10 @@ object WeatherUpdates {
 
     fun notifyChanged() = _version.update { it + 1 }
 
-    /** The plan for the last known weather in the chosen style, or `null` before the first fetch. */
+    /** The plan for the last known weather and the chosen style, or `null` before the first fetch. */
     suspend fun currentPlan(context: Context): Pair<RenderPlan, Style>? {
         val style = SettingsRepository(context).current().style
         val snapshot = withContext(Dispatchers.IO) { WeatherStore(context).loadSnapshot() } ?: return null
-        return RenderPlan.plan(snapshot.conditions, style) to style
+        return RenderPlan.plan(snapshot.conditions) to style
     }
 }

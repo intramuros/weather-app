@@ -4,8 +4,8 @@ A cute girl dressed for the weather where you are, shown as an animated
 Android wallpaper (rain, snow and wind move around her), a widget, or a still
 lock screen. The widget also shows the place, temperature, humidity and wind,
 and has a button to refresh it. The app also shows the forecast for the coming
-days. You can pick the art style: **Pixel art**, **Ukiyo-e** or
-**Delfts Blauw**.
+days. You can pick the art style, **Pixel art** or **Anime**; each has one
+finished picture per kind of weather.
 
 Weather data comes from [Open-Meteo](https://open-meteo.com) (KNMI HARMONIE
 model) and rain radar from [Buienradar](https://www.buienradar.nl).
@@ -13,16 +13,16 @@ model) and rain radar from [Buienradar](https://www.buienradar.nl).
 ## Layout
 
 - `core/`: pure Kotlin logic. It turns API responses into conditions, then
-  into a scene, an outfit and an ordered list of image layers.
+  into a scene, the picture that fits it and the particles moving over it.
 - `app/`: the Android app: settings screen, home-screen widget, wallpaper and
   lock screen, and a background refresh every 30 minutes.
-- `app/src/main/assets/styles/`: one folder per style. Pixel art has nine
-  finished scenes; the other styles have placeholder PNG layers.
-- `tools/placeholders/`: regenerates the placeholder art for the layered
-  styles and renders animated GIF previews of the live wallpaper.
+- `app/src/main/assets/scenes/<style>/`: the 30 finished pictures per style
+  (pixel art also has the widget's icons for each).
+- `tools/preview/`: renders animated GIF previews of the live wallpaper.
 - `tools/scenes/`: the pixel-art scene pictures and the script that turns
-  them into assets.
-- `docs/DESIGN.md`: decisions, dressing rules, asset pack spec and roadmap.
+  them into assets, plus `import_style.py` for another style's pictures and
+  `anime/PROMPTS.md`, the ChatGPT prompts for the anime ones.
+- `docs/DESIGN.md`: decisions, asset spec and roadmap.
 
 ## Install on your phone
 
@@ -42,8 +42,7 @@ and the Android SDK):
 ./gradlew :core:test :app:testDebugUnitTest   # unit tests
 ./gradlew :app:lintDebug                      # Android lint
 ./gradlew :app:installDebug                   # install on a connected phone
-./gradlew :tools:placeholders:run             # regenerate placeholder art
-./gradlew :tools:placeholders:preview         # GIFs of the live wallpaper → tools/placeholders/build/previews
+./gradlew :tools:preview:run                  # GIFs of the live wallpaper → tools/preview/build/previews
 ```
 
 After installing, open the app once and tap **Set** next to "Animated

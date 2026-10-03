@@ -25,8 +25,8 @@ enum class ParticleKind {
 
 /**
  * How one kind of particle moves, in [ArtCanvas] units. Motion is always
- * towards the right of the art; [RenderPlan.mirrored] flips the whole picture
- * when the real wind blows the other way.
+ * towards the right of the art; [RenderPlan.particlesMirrored] flips the
+ * particles when the real wind blows the other way.
  */
 data class ParticleSpec(
     val kind: ParticleKind,

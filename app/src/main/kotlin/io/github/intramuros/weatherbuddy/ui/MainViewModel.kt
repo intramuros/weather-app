@@ -30,7 +30,9 @@ data class UiState(
     val settings: Settings? = null,
     val snapshot: WeatherSnapshot? = null,
     val preview: Bitmap? = null,
-    /** The current weather drawn in every style, for the style picker. */
+    /** The styles that can be picked; the picker only shows when there's a choice. */
+    val styles: List<Style> = emptyList(),
+    /** The current weather drawn in every available style, for the style picker. */
     val thumbnails: Map<Style, Bitmap> = emptyMap(),
     /** Draws the animated preview. */
     val live: LiveRenderer? = null,
@@ -107,16 +109,20 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private suspend fun loadFromDisk() {
         val (snapshot, preview) = withContext(Dispatchers.IO) { store.loadSnapshot() to store.loadPreview() }
         val style = settingsRepo.current().style
+        val styles = settingsRepo.availableStyles
         val (thumbnails, live) = snapshot?.let { snap ->
             withContext(Dispatchers.Default) {
+                val plan = RenderPlan.plan(snap.conditions)
                 val compositor = Compositor(app.assets)
-                val thumbnails = Style.entries.associateWith {
-                    compositor.render(RenderPlan.plan(snap.conditions, it), it, THUMB_WIDTH, THUMB_HEIGHT)
+                val thumbnails = if (styles.size > 1) {
+                    styles.associateWith { compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT) }
+                } else {
+                    emptyMap()
                 }
-                thumbnails to LiveRenderer(app.assets, RenderPlan.plan(snap.conditions, style), style)
+                thumbnails to LiveRenderer(app.assets, plan, style)
             }
         } ?: (emptyMap<Style, Bitmap>() to null)
-        _state.update { it.copy(snapshot = snapshot, preview = preview, thumbnails = thumbnails, live = live) }
+        _state.update { it.copy(snapshot = snapshot, preview = preview, styles = styles, thumbnails = thumbnails, live = live) }
     }
 
     private companion object {
