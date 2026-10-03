@@ -29,11 +29,13 @@ class OpenMeteoTest {
         assertNull(c.uvIndex)
         assertTrue(c.rainNowcast.isEmpty())
         assertTrue(c.forecast.isEmpty())
+        assertNull(c.timeZone)
     }
 
     @Test
     fun parsesDailyBlock() {
         val json = """{
+            "timezone": "Europe/Amsterdam",
             "current": {"temperature_2m": 14.2, "weather_code": 3, "is_day": 0},
             "daily_units": {"time": "iso8601", "temperature_2m_max": "°C"},
             "daily": {
@@ -45,7 +47,9 @@ class OpenMeteoTest {
                 "wind_gusts_10m_max": [16.2, null, 29.2]
             }
         }"""
-        val days = OpenMeteo.parse(json).forecast
+        val conditions = OpenMeteo.parse(json)
+        assertEquals("Europe/Amsterdam", conditions.timeZone)
+        val days = conditions.forecast
         // The third day has no weather code, so it's left out.
         assertEquals(
             listOf(

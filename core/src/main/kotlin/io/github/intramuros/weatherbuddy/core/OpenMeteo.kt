@@ -62,6 +62,7 @@ object OpenMeteo {
             humidityPercent = c.relative_humidity_2m,
             precipitationMm = c.precipitation ?: 0.0,
             forecast = response.daily?.let(::days).orEmpty(),
+            timeZone = response.timezone,
         )
     }
 
@@ -80,7 +81,7 @@ object OpenMeteo {
     private fun missing(field: String) = WeatherParseException("Open-Meteo response has no value for `$field`")
 
     @Serializable
-    private class Response(val current: Current, val daily: Daily? = null)
+    private class Response(val current: Current, val daily: Daily? = null, val timezone: String? = null)
 
     @Suppress("PropertyName")
     @Serializable

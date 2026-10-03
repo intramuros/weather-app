@@ -131,6 +131,8 @@ class WeatherWidget : GlanceAppWidget() {
 class RefreshAction : ActionCallback {
     override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
         RefreshWorker.runTapped(context)
+        // An idle widget has nothing watching the work, so redraw it to show the dots.
+        WeatherWidget().update(context, glanceId)
     }
 }
 

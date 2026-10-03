@@ -85,7 +85,9 @@ import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.labelRes
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
+import java.time.DateTimeException
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeParseException
 import java.time.format.TextStyle
 import java.util.Date
@@ -174,7 +176,7 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
             state.message?.let {
                 Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
-            snapshot?.let { Forecast(it.conditions.forecast) }
+            snapshot?.let { Forecast(it.conditions.forecast, it.conditions.timeZone) }
 
             if (settings == null) return@Column
 
@@ -243,10 +245,13 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
     }
 }
 
-/** Today and the coming days, one row each; days already past are left out. */
+/**
+ * Today and the coming days, one row each; days already past are left out.
+ * "Today" is today at the forecast's location, whose dates the days are.
+ */
 @Composable
-private fun Forecast(days: List<DayForecast>) {
-    val today = remember { LocalDate.now() }
+private fun Forecast(days: List<DayForecast>, timeZone: String?) {
+    val today = remember(timeZone) { LocalDate.now(zoneOrDefault(timeZone)) }
     val coming = days.mapNotNull { day ->
         val date = try {
             LocalDate.parse(day.date)
@@ -329,6 +334,12 @@ private fun dayName(date: LocalDate, today: LocalDate): String {
         // Some languages, Dutch among them, write day names in lower case.
         else -> date.dayOfWeek.getDisplayName(TextStyle.FULL, locale).replaceFirstChar { it.titlecase(locale) }
     }
+}
+
+private fun zoneOrDefault(id: String?): ZoneId = try {
+    id?.let(ZoneId::of) ?: ZoneId.systemDefault()
+} catch (_: DateTimeException) {
+    ZoneId.systemDefault()
 }
 
 /** Less than this over a day (mm) isn't worth showing. */

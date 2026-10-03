@@ -28,6 +28,11 @@ data class Conditions(
     val rainNowcast: List<RainStep> = emptyList(),
     /** Today and the coming days, in date order. Empty in snapshots saved before it was fetched. */
     val forecast: List<DayForecast> = emptyList(),
+    /**
+     * The location's time zone (IANA, e.g. `Europe/Amsterdam`), which the [forecast]
+     * dates are local to. `null` in snapshots saved before it was fetched.
+     */
+    val timeZone: String? = null,
 ) {
     /** Rain intensity right now according to the radar nowcast, if we have one. */
     val rainNowMmH: Double? get() = rainNowcast.firstOrNull()?.mmPerHour

@@ -10,6 +10,7 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.await
 import androidx.work.workDataOf
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
@@ -53,12 +54,13 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         /**
          * For the widget's refresh button. Runs even offline, so the tap always
          * ends, showing the last known weather; taps while it runs are ignored.
+         * Returns once the work is enqueued, so [tappedInProgress] already says so.
          */
-        fun runTapped(context: Context) {
+        suspend fun runTapped(context: Context) {
             val request = OneTimeWorkRequestBuilder<RefreshWorker>()
                 .setInputData(workDataOf(KEY_TAPPED to true))
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(TAPPED, ExistingWorkPolicy.KEEP, request)
+            WorkManager.getInstance(context).enqueueUniqueWork(TAPPED, ExistingWorkPolicy.KEEP, request).await()
         }
 
         /** Whether a [runTapped] refresh is waiting or running. */
