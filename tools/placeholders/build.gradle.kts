@@ -27,3 +27,15 @@ tasks.named<JavaExec>("run") {
     // Write straight into the app's assets.
     args(rootProject.layout.projectDirectory.dir("app/src/main/assets/styles").asFile.absolutePath)
 }
+
+// Animated GIF previews of the live wallpaper.
+tasks.register<JavaExec>("preview") {
+    group = "application"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = "io.github.intramuros.weatherbuddy.placeholders.PreviewKt"
+    jvmArgs("-Djava.awt.headless=true")
+    args(
+        rootProject.layout.projectDirectory.dir("app/src/main/assets/styles").asFile.absolutePath,
+        layout.buildDirectory.dir("previews").get().asFile.absolutePath,
+    )
+}

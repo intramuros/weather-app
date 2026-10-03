@@ -24,7 +24,8 @@ class Compositor(private val assets: AssetManager) {
         val out = createBitmap(width, height)
         val canvas = Canvas(out)
         val paint = Paint().apply { isFilterBitmap = !style.pixelated }
-        for (path in plan.layers) {
+        if (plan.mirrored) canvas.scale(-1f, 1f, width / 2f, 0f)
+        for (path in plan.stillLayers) {
             val layer = load(path) ?: continue
             val b = coverBounds(layer.width, layer.height, width, height)
             canvas.drawBitmap(layer, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), paint)
@@ -33,7 +34,7 @@ class Compositor(private val assets: AssetManager) {
         return out
     }
 
-    private fun load(path: String): Bitmap? =
+    internal fun load(path: String): Bitmap? =
         try {
             assets.open("styles/$path").use { BitmapFactory.decodeStream(it) }
         } catch (_: FileNotFoundException) {

@@ -2,6 +2,7 @@ package io.github.intramuros.weatherbuddy.core
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class StyleTest {
@@ -36,9 +37,9 @@ class StyleTest {
             val required = style.requiredAssets().toSet()
             val used = mutableSetOf<String>()
             for (c in grid) {
-                for (layer in RenderPlan.plan(c, style).layers) {
-                    assertTrue(layer in required, "$layer not in asset list")
-                    used += layer
+                for (asset in RenderPlan.plan(c, style).layers.flatMap { it.assets }) {
+                    assertTrue(asset in required, "$asset not in asset list")
+                    used += asset
                 }
             }
             assertEquals(emptyList(), (required - used).sorted(), "never drawn for $style")
@@ -47,7 +48,8 @@ class StyleTest {
 
     @Test
     fun requiredAssetCount() {
-        assertEquals(45, Style.PIXEL_ART.requiredAssets().size)
+        // 45 still images + 9 hair frames + 5 blinks + 3 windy-scarf frames.
+        assertEquals(62, Style.PIXEL_ART.requiredAssets().size)
     }
 
     @Test
@@ -62,10 +64,37 @@ class StyleTest {
                 "delfts-blauw/bottom/trousers.png",
                 "delfts-blauw/footwear/sneakers.png",
                 "delfts-blauw/top/sweater.png",
+                "delfts-blauw/hair/calm.png",
                 "delfts-blauw/outerwear/light-jacket.png",
                 "delfts-blauw/accessory/umbrella-open.png",
             ),
-            RenderPlan.plan(c, Style.DELFTS_BLAUW).layers,
+            RenderPlan.plan(c, Style.DELFTS_BLAUW).stillLayers,
         )
+    }
+
+    @Test
+    fun windAnimatesHairAndScarf() {
+        val plan = RenderPlan.plan(conditions(3, 5.0, 45.0), Style.PIXEL_ART)
+        val animated = plan.layers.filterIsInstance<Layer.Sprite>().filter { it.isAnimated }.map { it.still }
+        assertEquals(
+            listOf(
+                "pixel-art/face/happy.png",
+                "pixel-art/hair/breezy-0.png",
+                "pixel-art/accessory/scarf-wind-0.png",
+            ),
+            animated,
+        )
+        val particles = plan.layers.filterIsInstance<Layer.Particles>()
+        assertEquals(listOf("pixel-art/fx/wind-breezy.png"), particles.map { it.still })
+    }
+
+    @Test
+    fun eastWindMirrorsThePicture() {
+        val windy = conditions(3, 12.0, 45.0)
+        assertTrue(RenderPlan.plan(windy.copy(windDirectionDeg = 90.0), Style.UKIYO_E).mirrored)
+        assertFalse(RenderPlan.plan(windy.copy(windDirectionDeg = 240.0), Style.UKIYO_E).mirrored)
+        assertFalse(RenderPlan.plan(windy.copy(windDirectionDeg = null), Style.UKIYO_E).mirrored)
+        // No visible wind, nothing to follow.
+        assertFalse(RenderPlan.plan(conditions(3, 12.0, 10.0).copy(windDirectionDeg = 90.0), Style.UKIYO_E).mirrored)
     }
 }

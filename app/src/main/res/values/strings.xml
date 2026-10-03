@@ -7,8 +7,14 @@
     <string name="buddy_description">A character dressed for the current weather</string>
     <string name="style">Style</string>
     <string name="show_on">Show on</string>
-    <string name="home_screen_wallpaper">Home screen wallpaper</string>
-    <string name="lock_screen">Lock screen</string>
+    <string name="live_wallpaper_description">Your buddy, dressed for the weather, with the rain, snow and wind moving around her</string>
+    <string name="live_wallpaper">Animated wallpaper</string>
+    <string name="live_wallpaper_hint">Moving rain and wind. On most phones it also shows on the lock screen.</string>
+    <string name="set_live_wallpaper">Set</string>
+    <string name="live_wallpaper_active">Active</string>
+    <string name="home_screen_wallpaper">Still picture on home screen</string>
+    <string name="home_screen_live_active">Not needed while the animated wallpaper is on</string>
+    <string name="lock_screen">Still picture on lock screen</string>
     <string name="widget_hint">Add the widget from your home screen\'s widget picker.</string>
     <string name="location">Location</string>
     <string name="location_default">De Bilt (default)</string>

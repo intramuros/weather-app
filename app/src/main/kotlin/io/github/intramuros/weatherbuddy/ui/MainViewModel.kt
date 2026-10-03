@@ -16,6 +16,8 @@ import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import io.github.intramuros.weatherbuddy.render.Compositor
+import io.github.intramuros.weatherbuddy.render.LiveRenderer
+import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +32,10 @@ data class UiState(
     val preview: Bitmap? = null,
     /** The current weather drawn in every style, for the style picker. */
     val thumbnails: Map<Style, Bitmap> = emptyMap(),
+    /** Draws the animated preview. */
+    val live: LiveRenderer? = null,
+    /** Whether our animated wallpaper is the current home screen wallpaper. */
+    val liveWallpaperActive: Boolean = false,
     val busy: Boolean = false,
     @param:StringRes val message: Int? = null,
 )
@@ -74,6 +80,9 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun refresh() = viewModelScope.launch { refreshNow(fetch = true) }
 
+    /** Call when returning to the app, e.g. from the system wallpaper screen. */
+    fun checkLiveWallpaper() = _state.update { it.copy(liveWallpaperActive = BuddyWallpaperService.isActive(app)) }
+
     private suspend fun updateLocation() {
         _state.update { it.copy(busy = true) }
         val location = LocationProvider.current(app)
@@ -97,15 +106,17 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private suspend fun loadFromDisk() {
         val (snapshot, preview) = withContext(Dispatchers.IO) { store.loadSnapshot() to store.loadPreview() }
-        val thumbnails = snapshot?.let { snap ->
+        val style = settingsRepo.current().style
+        val (thumbnails, live) = snapshot?.let { snap ->
             withContext(Dispatchers.Default) {
                 val compositor = Compositor(app.assets)
-                Style.entries.associateWith { style ->
-                    compositor.render(RenderPlan.plan(snap.conditions, style), style, THUMB_WIDTH, THUMB_HEIGHT)
+                val thumbnails = Style.entries.associateWith {
+                    compositor.render(RenderPlan.plan(snap.conditions, it), it, THUMB_WIDTH, THUMB_HEIGHT)
                 }
+                thumbnails to LiveRenderer(app.assets, RenderPlan.plan(snap.conditions, style), style)
             }
-        }.orEmpty()
-        _state.update { it.copy(snapshot = snapshot, preview = preview, thumbnails = thumbnails) }
+        } ?: (emptyMap<Style, Bitmap>() to null)
+        _state.update { it.copy(snapshot = snapshot, preview = preview, thumbnails = thumbnails, live = live) }
     }
 
     private companion object {

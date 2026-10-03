@@ -16,7 +16,7 @@ class OpenMeteoTest {
                 "time": "2026-10-03T14:15", "interval": 900,
                 "temperature_2m": 13.4, "apparent_temperature": 10.9, "is_day": 1,
                 "precipitation": 0.3, "weather_code": 61,
-                "wind_speed_10m": 24.1, "wind_gusts_10m": 48.2, "uv_index": null
+                "wind_speed_10m": 24.1, "wind_gusts_10m": 48.2, "wind_direction_10m": 235, "uv_index": null
             }
         }"""
         val c = OpenMeteo.parseCurrent(json)
@@ -25,6 +25,7 @@ class OpenMeteoTest {
         assertTrue(c.isDay)
         assertEquals(61, c.weatherCode)
         assertNull(c.uvIndex)
+        assertEquals(235.0, c.windDirectionDeg)
         assertTrue(c.rainNowcast.isEmpty())
     }
 
