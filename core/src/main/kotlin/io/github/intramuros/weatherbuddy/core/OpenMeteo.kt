@@ -12,7 +12,7 @@ import java.util.Locale
  */
 object OpenMeteo {
     private const val CURRENT_FIELDS = "temperature_2m,apparent_temperature,is_day,precipitation," +
-        "weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,uv_index"
+        "weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -68,8 +68,8 @@ object OpenMeteo {
         val precipitation: Double? = null,
         val weather_code: Int? = null,
         val wind_speed_10m: Double? = null,
-        val wind_gusts_10m: Double? = null,
         val wind_direction_10m: Double? = null,
+        val wind_gusts_10m: Double? = null,
         val uv_index: Double? = null,
     )
 }

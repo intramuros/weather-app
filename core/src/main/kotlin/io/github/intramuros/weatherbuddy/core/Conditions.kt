@@ -10,7 +10,10 @@ data class Conditions(
     val apparentTemperatureC: Double,
     val windSpeedKmh: Double,
     val windGustsKmh: Double,
-    /** Where the wind comes from, in degrees (meteorological: 270 = from the west). */
+    /**
+     * Where the wind blows from, in degrees clockwise from north (270 = from the west).
+     * `null` in snapshots saved before it was fetched.
+     */
     val windDirectionDeg: Double? = null,
     /** `null` when the model does not provide UV (e.g. KNMI HARMONIE). */
     val uvIndex: Double?,

@@ -318,7 +318,9 @@ private fun Credits() {
         withLink(LinkAnnotation.Url("https://open-meteo.com")) { append("Open-Meteo") }
         append(" (KNMI model). Rain radar: ")
         withLink(LinkAnnotation.Url("https://www.buienradar.nl")) { append("Buienradar") }
-        append(".")
+        append(". Font: ")
+        withLink(LinkAnnotation.Url("https://github.com/eifetx/Pixelify-Sans")) { append("Pixelify Sans") }
+        append(" (SIL Open Font License).")
     }
     Text(text, style = MaterialTheme.typography.bodySmall)
 }

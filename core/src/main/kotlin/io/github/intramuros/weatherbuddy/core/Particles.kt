@@ -51,15 +51,15 @@ data class ParticleSpec(
             val gusts = gustiness(c)
             return when (scene.precipitation) {
                 Precipitation.NONE -> null
-                Precipitation.DRIZZLE -> ParticleSpec(ParticleKind.DROP, 35, 150.0, wind * 1.5, gusts, 0.0, 3.0)
+                Precipitation.DRIZZLE -> ParticleSpec(ParticleKind.DROP, 80, 150.0, wind * 1.5, gusts, 0.0, 3.0)
                 Precipitation.RAIN -> {
                     val mmPerHour = c.rainNowMmH ?: 1.5
-                    val count = (50 + 20 * mmPerHour).toInt().coerceIn(50, 140)
+                    val count = (110 + 45 * mmPerHour).toInt().coerceIn(110, 310)
                     ParticleSpec(ParticleKind.DROP, count, 260.0, wind * 2, gusts, 0.0, 8.0)
                 }
-                Precipitation.HEAVY_RAIN -> ParticleSpec(ParticleKind.DROP, 180, 340.0, wind * 2, gusts, 0.0, 13.0)
-                Precipitation.SNOW -> ParticleSpec(ParticleKind.FLAKE, 70, 22.0, wind * 0.8, gusts, 5.0, 2.5)
-                Precipitation.HAIL -> ParticleSpec(ParticleKind.HAILSTONE, 45, 280.0, wind * 1.5, gusts, 0.0, 3.0)
+                Precipitation.HEAVY_RAIN -> ParticleSpec(ParticleKind.DROP, 400, 340.0, wind * 2, gusts, 0.0, 13.0)
+                Precipitation.SNOW -> ParticleSpec(ParticleKind.FLAKE, 155, 22.0, wind * 0.8, gusts, 5.0, 2.5)
+                Precipitation.HAIL -> ParticleSpec(ParticleKind.HAILSTONE, 100, 280.0, wind * 1.5, gusts, 0.0, 3.0)
             }
         }
 
@@ -69,10 +69,10 @@ data class ParticleSpec(
             val gusts = gustiness(c)
             return when (scene.wind) {
                 Wind.CALM -> emptyList()
-                Wind.BREEZY -> listOf(ParticleSpec(ParticleKind.STREAK, 5, 0.0, wind * 3, gusts, 3.0, 26.0))
+                Wind.BREEZY -> listOf(ParticleSpec(ParticleKind.STREAK, 11, 0.0, wind * 3, gusts, 3.0, 26.0))
                 Wind.STORMY -> listOf(
-                    ParticleSpec(ParticleKind.STREAK, 10, 0.0, wind * 3.5, gusts, 4.0, 36.0),
-                    ParticleSpec(ParticleKind.LEAF, 8, 30.0, wind * 2.5, gusts, 8.0, 3.0),
+                    ParticleSpec(ParticleKind.STREAK, 22, 0.0, wind * 3.5, gusts, 4.0, 36.0),
+                    ParticleSpec(ParticleKind.LEAF, 18, 30.0, wind * 2.5, gusts, 8.0, 3.0),
                 )
             }
         }
@@ -146,6 +146,6 @@ class ParticleField(private val spec: ParticleSpec, seed: Long = 1) {
     private companion object {
         /** Particles wrap around off-screen so they don't pop in at the edges. */
         const val MARGIN = 40.0
-        const val X_SPAN = ArtCanvas.WIDTH + 2 * MARGIN
+        const val X_SPAN = ArtCanvas.SCENE_SIZE + 2 * MARGIN
     }
 }

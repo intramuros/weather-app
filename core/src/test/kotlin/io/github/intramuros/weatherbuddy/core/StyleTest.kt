@@ -53,6 +53,13 @@ class StyleTest {
     }
 
     @Test
+    fun sceneryIsBackgroundAndEffects() {
+        val scenery = Style.PIXEL_ART.requiredAssets().filter(Style::isScenery)
+        assertEquals(10 + 5 + 2, scenery.size)
+        assertTrue(scenery.all { "/background/" in it || "/fx/" in it })
+    }
+
+    @Test
     fun umbrellaPutsRainBehindTheBuddy() {
         val c = conditions(63, 12.0, 10.0).copy(precipitationMm = 1.0)
         assertEquals(
