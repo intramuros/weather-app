@@ -9,7 +9,7 @@ set as the home and/or lock screen wallpaper.
 | Topic | Decision |
 |---|---|
 | Platform | Android first |
-| Art styles | **Pixel art**, and **Anime** once its pictures are in (made with ChatGPT from the pixel-art scenes: `tools/scenes/anime/PROMPTS.md`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw, drawn as layers combined on the device, were tried with placeholder art and dropped.) |
+| Art styles | **Pixel art** and **Anime** (made with ChatGPT from the pixel-art scenes: `tools/scenes/anime/PROMPTS.md`; the originals are in `tools/scenes/anime/source/`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw, drawn as layers combined on the device, were tried with placeholder art and dropped.) |
 | Image production | Finished scenes, one per kind of weather and warmth, bundled with the app (offline, free) |
 | Character | A girl on an Amsterdam canal, the same in every scene |
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
@@ -180,8 +180,7 @@ the anime ones are made.
 4. ✅ Live wallpaper: particles, wind direction
 5. ✅ CI: tests, lint and an installable APK on every pull request; `master`
    publishes it
-6. ✅ Art: 30 finished pixel-art scenes. Anime: prompts and import ready,
-   pictures to make
+6. ✅ Art: 30 finished scenes each in pixel art and anime
 7. ✅ Widget layout: place, temperature, condition, humidity and wind
 8. Polish: rain splashes, a forecast strip ("rain at 14:45"), pictures for
    the missing weather combinations, a private release key for a store
