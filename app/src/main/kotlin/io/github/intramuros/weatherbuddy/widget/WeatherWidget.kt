@@ -50,7 +50,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Shows the picture for the last known weather, temperature and wind included,
@@ -67,17 +67,18 @@ class WeatherWidget : GlanceAppWidget() {
      * Its pictures are drawn per widget size, when first needed.
      */
     private class Shown(val picture: Picture?, val description: String?, val version: Int) {
-        private val drawn = ConcurrentHashMap<DpSize, Bitmap>()
+        /** By pixel size, so a smaller memory budget gets a smaller picture. */
+        private val drawn = ConcurrentHashMap<Pair<Int, Int>, Bitmap>()
 
-        fun drawnAt(size: DpSize): Bitmap? = drawn[size]
+        fun drawnAt(size: DpSize, maxPixels: Int): Bitmap? = drawn[pictureSize(size.width.value, size.height.value, maxPixels)]
 
-        suspend fun drawAt(context: Context, size: DpSize): Bitmap? {
+        suspend fun drawAt(context: Context, size: DpSize, maxPixels: Int): Bitmap? {
             val picture = picture ?: return null
-            drawn[size]?.let { return it }
-            val (width, height) = pictureSize(size.width.value, size.height.value)
+            val pixels = pictureSize(size.width.value, size.height.value, maxPixels)
+            drawn[pixels]?.let { return it }
             return withContext(Dispatchers.Default) {
-                Compositor(context.assets).render(picture.plan, picture.style, width, height, picture.info)
-            }.also { drawn[size] = it }
+                Compositor(context.assets).render(picture.plan, picture.style, pixels.first, pixels.second, picture.info)
+            }.also { drawn[pixels] = it }
         }
     }
 
@@ -86,7 +87,9 @@ class WeatherWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val initial = load(context)
         // Draw the sizes it's on screen at now, so it never shows up without its picture.
-        GlanceAppWidgetManager(context).getAppWidgetSizes(id).forEach { initial.drawAt(context, it) }
+        val sizes = GlanceAppWidgetManager(context).getAppWidgetSizes(id)
+        val initialMaxPixels = maxPicturePixels(context, sizes.size)
+        sizes.forEach { initial.drawAt(context, it, initialMaxPixels) }
         val initialRefreshing = RefreshWorker.tappedInProgress(context).first()
         provideContent {
             // While the widget is on screen it isn't rebuilt, so pick up new pictures here.
@@ -96,8 +99,9 @@ class WeatherWidget : GlanceAppWidget() {
             }
             // Keeps the last picture until the one for a new size or new weather is drawn.
             val size = LocalSize.current
-            val image by produceState(shown.drawnAt(size), shown, size) {
-                value = shown.drawAt(context, size)
+            val image by produceState(shown.drawnAt(size, initialMaxPixels), shown, size) {
+                val maxPixels = maxPicturePixels(context, GlanceAppWidgetManager(context).getAppWidgetSizes(id).size)
+                value = shown.drawAt(context, size, maxPixels)
             }
             val refreshing by RefreshWorker.tappedInProgress(context).collectAsState(initialRefreshing)
             Content(image, shown.description, refreshing)
@@ -174,17 +178,31 @@ class RefreshAction : ActionCallback {
     }
 }
 
-/** The longer side of the widget's picture, in pixels. */
+/** The longer side of the widget's picture, in pixels, when memory allows. */
 private const val PICTURE_SIDE = 800
 
 /**
- * The widget picture's size in pixels for a widget [widthDp] × [heightDp]:
- * the same shape, [PICTURE_SIDE] pixels along its longer side.
+ * The most pixels each of a widget's [sizeCount] pictures may have. Android
+ * rejects a widget update whose bitmaps take more memory than 1.5 screens
+ * ([android.appwidget.AppWidgetManager.updateAppWidget]), and every size goes
+ * in the same update; some room is kept for the rest of it.
  */
-internal fun pictureSize(widthDp: Float, heightDp: Float): Pair<Int, Int> {
-    if (widthDp <= 0f || heightDp <= 0f) return PICTURE_SIDE to PICTURE_SIDE
-    val scale = PICTURE_SIDE / maxOf(widthDp, heightDp)
-    return (widthDp * scale).roundToInt().coerceAtLeast(1) to (heightDp * scale).roundToInt().coerceAtLeast(1)
+private fun maxPicturePixels(context: Context, sizeCount: Int): Int {
+    val metrics = context.resources.displayMetrics
+    val screenPixels = metrics.widthPixels.toLong() * metrics.heightPixels
+    return (screenPixels * 1.5 * 0.9 / sizeCount.coerceAtLeast(1)).toInt()
+}
+
+/**
+ * The widget picture's size in pixels for a widget [widthDp] × [heightDp]:
+ * the same shape, [PICTURE_SIDE] pixels along its longer side, or smaller to
+ * stay within [maxPixels].
+ */
+internal fun pictureSize(widthDp: Float, heightDp: Float, maxPixels: Int): Pair<Int, Int> {
+    val (w, h) = if (widthDp <= 0f || heightDp <= 0f) 1f to 1f else widthDp to heightDp
+    var scale = PICTURE_SIDE / maxOf(w, h)
+    if (w * scale * h * scale > maxPixels) scale = sqrt(maxPixels / (w * h))
+    return (w * scale).toInt().coerceAtLeast(1) to (h * scale).toInt().coerceAtLeast(1)
 }
 
 class WeatherWidgetReceiver : GlanceAppWidgetReceiver() {
