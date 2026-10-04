@@ -23,6 +23,8 @@ enum class Style(
 ) {
     PIXEL_ART("pixel-art", "Pixel art", pixelated = true, fps = 12, hasWidgetIcons = true),
     ANIME("anime", "Anime", pixelated = false, fps = 24, hasWidgetIcons = false),
+    UKIYO_E("ukiyo-e", "Ukiyo-e", pixelated = false, fps = 24, hasWidgetIcons = false),
+    DELFT_BLUE("delft-blue", "Delft blue", pixelated = false, fps = 24, hasWidgetIcons = false),
     ;
 
     /** The picture, as a path in the app's assets. */
@@ -49,6 +51,22 @@ enum class Style(
             ParticleKind.HAILSTONE -> ParticleLook(0xFFEAF4FF.toInt(), 0.5)
             ParticleKind.STREAK -> ParticleLook(0x80FFFFFF.toInt(), 0.3)
             ParticleKind.LEAF -> ParticleLook(0xFF8FBF4A.toInt(), 0.5)
+        }
+        // Fine, straight indigo rain lines and paper-white snow, as in a Hiroshige print.
+        UKIYO_E -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0x99404C6E.toInt(), 0.35)
+            ParticleKind.FLAKE -> ParticleLook(0xF2FBF6EC.toInt(), 0.6)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFFF1EDE4.toInt(), 0.5)
+            ParticleKind.STREAK -> ParticleLook(0x66404C6E.toInt(), 0.3)
+            ParticleKind.LEAF -> ParticleLook(0xFFC8553D.toInt(), 0.6)
+        }
+        // Cobalt only, like the paint. A middle blue, since the sky is cream by day and deep blue at night.
+        DELFT_BLUE -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0xB34A6CC8.toInt(), 0.4)
+            ParticleKind.FLAKE -> ParticleLook(0xE67D9AE0.toInt(), 0.6)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFF9DB3EA.toInt(), 0.5)
+            ParticleKind.STREAK -> ParticleLook(0x804A6CC8.toInt(), 0.3)
+            ParticleKind.LEAF -> ParticleLook(0xFF2B4BAA.toInt(), 0.6)
         }
     }
 
