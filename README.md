@@ -28,9 +28,10 @@ model) and rain radar from [Buienradar](https://www.buienradar.nl).
 
 Every push builds the app on GitHub Actions and publishes it as the
 [latest release](https://github.com/intramuros/weather-app/releases/latest).
-On your phone, signed in to GitHub, open that page and tap
-**weather-buddy.apk**. Android will ask you to allow installs from your browser
-once; if Play Protect warns about an unknown developer, choose
+On your phone, open
+<https://github.com/intramuros/weather-app/releases/latest/download/weather-buddy.apk>
+(no GitHub account needed). Android will ask you to allow installs from your
+browser once; if Play Protect warns about an unknown developer, choose
 **More details → Install anyway**. New builds install over the old one.
 
 ## Build and run
