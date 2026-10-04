@@ -13,13 +13,12 @@ import java.io.File
 data class WeatherSnapshot(val conditions: Conditions, val fetchedAtMillis: Long)
 
 /**
- * The last fetched weather and the pictures rendered from it, kept as files so
+ * The last fetched weather and the preview rendered from it, kept as files so
  * the widget, the worker and the UI all see the same thing.
  */
 class WeatherStore(context: Context) {
     private val dir = context.applicationContext.filesDir
     private val weatherFile = File(dir, "weather.json")
-    private val widgetFile = File(dir, "widget.png")
     private val previewFile = File(dir, "preview.png")
 
     fun loadSnapshot(): WeatherSnapshot? =
@@ -33,13 +32,11 @@ class WeatherStore(context: Context) {
 
     fun saveSnapshot(snapshot: WeatherSnapshot) = weatherFile.writeAtomically { it.writeText(Json.encodeToString(snapshot)) }
 
-    fun loadWidgetImage(): Bitmap? = widgetFile.decode()
-
     fun loadPreview(): Bitmap? = previewFile.decode()
 
-    fun saveImages(widget: Bitmap, preview: Bitmap) {
-        widgetFile.writeAtomically { file -> file.outputStream().use { widget.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+    fun savePreview(preview: Bitmap) {
         previewFile.writeAtomically { file -> file.outputStream().use { preview.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+        File(dir, "widget.png").delete() // Left by versions that drew the widget's picture here.
     }
 
     private fun File.decode(): Bitmap? = takeIf { it.exists() }?.let { BitmapFactory.decodeFile(it.path) }

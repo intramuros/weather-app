@@ -14,7 +14,6 @@ import io.github.intramuros.weatherbuddy.data.WeatherClient
 import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import io.github.intramuros.weatherbuddy.render.Compositor
-import io.github.intramuros.weatherbuddy.render.WidgetInfo
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import io.github.intramuros.weatherbuddy.widget.WeatherWidget
 import kotlinx.coroutines.Dispatchers
@@ -32,14 +31,12 @@ sealed interface RefreshResult {
 }
 
 /**
- * Fetch → plan → render → publish (widget and, if enabled, wallpaper).
+ * Fetch → plan → render → publish (preview, widget and, if enabled, wallpaper).
  * Shared by the background worker and the settings screen.
  */
 object Refresher {
     private const val TAG = "Refresher"
 
-    /** The widget picture is square, like the scenes; the widget fits it to its shape. */
-    private const val WIDGET_SIZE = 600
     const val PREVIEW_WIDTH = 540
     const val PREVIEW_HEIGHT = 1200
 
@@ -71,12 +68,11 @@ object Refresher {
 
         val plan = RenderPlan.plan(snapshot.conditions)
         val compositor = Compositor(app.assets)
-        val info = WidgetInfo.from(app, snapshot.conditions, plan.scene, placeName(app, settings))
         withContext(Dispatchers.Default) {
-            val widget = compositor.render(plan, settings.style, WIDGET_SIZE, WIDGET_SIZE, info)
             val preview = compositor.render(plan, settings.style, PREVIEW_WIDTH, PREVIEW_HEIGHT)
-            withContext(Dispatchers.IO) { store.saveImages(widget, preview) }
+            withContext(Dispatchers.IO) { store.savePreview(preview) }
         }
+        // The widget draws its own picture, in its shape.
         WeatherWidget().updateAll(app)
         WeatherUpdates.notifyChanged()
 

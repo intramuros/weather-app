@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
@@ -113,18 +114,23 @@ internal class InfoOverlay(private val assets: AssetManager) {
         } catch (_: FileNotFoundException) {
             null
         }
-        // The icons match the picture pixel for pixel, so they land where the picture did.
-        val b = Compositor.coverBounds(icons?.width ?: 1, icons?.height ?: 1, width, height)
+        // The picture covers the widget, cropping its sides or sky on a widget of another
+        // shape, so the icons and text are placed on their own to stay whole ([OverlayPlacement]).
+        val place = OverlayPlacement(width, height)
         icons?.let {
-            canvas.drawBitmap(it, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), Paint().apply { isFilterBitmap = true })
+            val split = (SceneLayout.LEFT_COLUMN_END / SceneLayout.UNITS * it.width).roundToInt()
+            val bottom = place.y(SceneLayout.UNITS)
+            val iconPaint = Paint().apply { isFilterBitmap = true }
+            canvas.drawBitmap(it, Rect(0, 0, split, it.height), RectF(0f, 0f, place.leftColumnEnd, bottom), iconPaint)
+            canvas.drawBitmap(it, Rect(split, 0, it.width, it.height), RectF(place.rightColumnStart, 0f, width.toFloat(), bottom), iconPaint)
             it.recycle()
         }
 
         val layout = SceneLayout.of(picture)
-        fun x(units: Float) = b.left + units / SceneLayout.UNITS * b.width
-        fun y(units: Float) = b.top + units / SceneLayout.UNITS * b.height
+        fun x(units: Float) = place.x(units)
+        fun y(units: Float) = place.y(units)
         val paint = Paint().apply { isAntiAlias = true }
-        val leftEdge = x(SceneLayout.LEFT_COLUMN_END)
+        val leftEdge = place.leftColumnEnd
         val rightEdge = x(SceneLayout.UNITS * 0.97f)
 
         // Lines are placed by the bottom of their capitals, as measured in the artwork.
@@ -133,7 +139,7 @@ internal class InfoOverlay(private val assets: AssetManager) {
             paint.typeface = font.typeface
             paint.isFakeBoldText = font.fakeBold
             val left = x(xUnits)
-            val capPixels = capUnits / SceneLayout.UNITS * b.height
+            val capPixels = capUnits * place.scale
             val gaps = value.count { it == '%' } * font.percentGap
             paint.fitText(value, capPixels / (font.capHeight + font.belowBaseline), maxX - left, gaps)
             val baseline = y(bottomUnits) - font.belowBaseline * paint.textSize
@@ -243,6 +249,27 @@ internal class InfoOverlay(private val assets: AssetManager) {
             }
         }
     }
+}
+
+/**
+ * Where the widget's icons and text go on a [width] × [height] picture, from
+ * [SceneLayout] units: scaled to fit and at the top, with the left column (up to
+ * [SceneLayout.LEFT_COLUMN_END]) against the left edge and the right column
+ * against the right. On a square picture that's exactly where the artwork has them.
+ */
+internal class OverlayPlacement(width: Int, height: Int) {
+    /** Pixels per unit. */
+    val scale = minOf(width, height) / SceneLayout.UNITS
+
+    /** How far right of its place in the artwork the right column moves. */
+    private val shift = width - SceneLayout.UNITS * scale
+
+    val leftColumnEnd = SceneLayout.LEFT_COLUMN_END * scale
+    val rightColumnStart = leftColumnEnd + shift
+
+    fun x(units: Float) = units * scale + if (units >= SceneLayout.LEFT_COLUMN_END) shift else 0f
+
+    fun y(units: Float) = units * scale
 }
 
 /**
