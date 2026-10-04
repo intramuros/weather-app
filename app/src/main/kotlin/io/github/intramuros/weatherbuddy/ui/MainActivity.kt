@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun WeatherBuddyTheme(content: @Composable () -> Unit) {
+internal fun WeatherBuddyTheme(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val dark = isSystemInDarkTheme()
     val colors = when {
@@ -198,6 +198,10 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
                     }
                 }
             }
+            OutlinedButton(
+                onClick = { context.startActivity(GalleryActivity.intent(context, settings.style)) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text(stringResource(R.string.browse_pictures)) }
 
             Text(stringResource(R.string.show_on), style = MaterialTheme.typography.titleMedium)
             Row(verticalAlignment = Alignment.CenterVertically) {

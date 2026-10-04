@@ -5,7 +5,8 @@ Android wallpaper (rain, snow and wind move around her), a widget, or a still
 lock screen. The widget also shows the place, temperature, humidity and wind,
 and has a button to refresh it. The app also shows the forecast for the coming
 days. You can pick the art style, **Pixel art**, **Anime**, **Ukiyo-e** or
-**Delft blue**; each has one finished picture per kind of weather.
+**Delft blue**; each has one finished picture per kind of weather, and
+**Browse all pictures** shows them all.
 
 Weather data comes from [Open-Meteo](https://open-meteo.com) (KNMI HARMONIE
 model) and rain radar from [Buienradar](https://www.buienradar.nl).
