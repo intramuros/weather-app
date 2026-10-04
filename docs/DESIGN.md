@@ -30,7 +30,7 @@ core/                  pure Kotlin/JVM, no Android
 app/                   Android (Compose, Glance, WorkManager, DataStore)
   RefreshWorker          every 30 min while online, and on the widget's
                          refresh button
-  Refresher              fetch → plan → Compositor → save images
+  Refresher              fetch → plan → Compositor → save preview
                          → update widget → set wallpaper if enabled and changed
   Compositor             draws the picture from assets/scenes/<style>/ into a Bitmap
   LiveRenderer           draws the plan at any moment: the picture, then the
@@ -38,8 +38,8 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   BuddyWallpaperService  the animated wallpaper; draws only while visible
   InfoOverlay            draws the widget's icons and text: place, temperature,
                          condition, humidity, wind
-  WeatherWidget          Glance widget showing the last picture, with a refresh
-                         button in the bottom-right corner
+  WeatherWidget          Glance widget drawing the last weather's picture in its
+                         own shape, with a refresh button in the bottom-right corner
   MainActivity           preview, forecast for the coming days, style picker
                          (once there's a choice), wallpaper switches, location,
                          credits
@@ -156,7 +156,11 @@ icons, fills the gaps with the surrounding sky, and writes both files. The
 wallpaper uses the plain scene (its middle, on a phone). The widget draws the
 icons on top, then the live text where the mock-up had it: place, humidity
 and wind on the right, temperature and condition on the left. `SceneLayout`
-holds those positions per picture, measured from the artwork. The
+holds those positions per picture, measured from the artwork. The widget's
+picture is drawn in the widget's own shape, the scene covering it like the
+wallpaper; on a widget that isn't square, the icons and text keep their size
+relative to its narrower side, at the top, with the left column against the
+left edge and the right column against the right. The
 temperature uses Jersey 10 and the rest DotGothic16 (Latin subset), both SIL
 OFL, in `assets/fonts/`. In every style, the widget's refresh button sits in
 the bottom-right corner, over the ground; it shows three dots while the
