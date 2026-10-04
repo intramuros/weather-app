@@ -45,5 +45,6 @@ class StyleTest {
         assertEquals(Style.ANIME, Style.fromSlug("anime"))
         assertEquals(Style.UKIYO_E, Style.fromSlug("ukiyo-e"))
         assertEquals(Style.DELFT_BLUE, Style.fromSlug("delft-blue"))
+        assertEquals(Style.MUCHA, Style.fromSlug("mucha"))
     }
 }
