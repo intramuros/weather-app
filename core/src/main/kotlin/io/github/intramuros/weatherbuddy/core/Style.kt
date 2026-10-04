@@ -25,6 +25,7 @@ enum class Style(
     ANIME("anime", "Anime", pixelated = false, fps = 24, hasWidgetIcons = false),
     UKIYO_E("ukiyo-e", "Ukiyo-e", pixelated = false, fps = 24, hasWidgetIcons = false),
     DELFT_BLUE("delft-blue", "Delft blue", pixelated = false, fps = 24, hasWidgetIcons = false),
+    MUCHA("mucha", "Mucha", pixelated = false, fps = 24, hasWidgetIcons = false),
     ;
 
     /** The picture, as a path in the app's assets. */
@@ -67,6 +68,14 @@ enum class Style(
             ParticleKind.HAILSTONE -> ParticleLook(0xFF9DB3EA.toInt(), 0.5)
             ParticleKind.STREAK -> ParticleLook(0x804A6CC8.toInt(), 0.3)
             ParticleKind.LEAF -> ParticleLook(0xFF2B4BAA.toInt(), 0.6)
+        }
+        // Fine powder-blue rain and cream snow from the poster's palette, autumn-ochre leaves.
+        MUCHA -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0x998AA6BE.toInt(), 0.35)
+            ParticleKind.FLAKE -> ParticleLook(0xF2FBF3E2.toInt(), 0.6)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFFF3EBDA.toInt(), 0.5)
+            ParticleKind.STREAK -> ParticleLook(0x668AA6BE.toInt(), 0.3)
+            ParticleKind.LEAF -> ParticleLook(0xFFD08A3A.toInt(), 0.6)
         }
     }
 
