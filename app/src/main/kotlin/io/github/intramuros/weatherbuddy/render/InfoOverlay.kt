@@ -62,20 +62,45 @@ data class WidgetInfo(
  * for it ([SceneLayout]). Other styles get the text in the sky, which their
  * pictures keep clear: temperature and condition on the left, place, humidity
  * and wind on the right. Every line shrinks to fit the space it has.
+ *
+ * Every line but the temperature is drawn larger than the mock-ups had it, to
+ * be readable on a phone ([VALUES_SCALE]). Over the icons, the temperature
+ * keeps its size, since it already fills the room under the weather icon, and
+ * the condition below it grows by [LABEL_SCALE], down towards the ground.
  */
 internal class InfoOverlay(private val assets: AssetManager) {
-    /** A pixel font with where its capitals sit, as fractions of the font size. */
-    private class PixelFont(val typeface: Typeface, val capHeight: Float, val belowBaseline: Float, val fakeBold: Boolean = false)
+    /**
+     * A pixel font with where its capitals sit, how far down and right its hard
+     * shadow falls (none if 0) and the extra space before a `%`, all as fractions
+     * of the font size.
+     */
+    private class PixelFont(
+        val typeface: Typeface,
+        val capHeight: Float,
+        val belowBaseline: Float,
+        val fakeBold: Boolean = false,
+        val shadowOffset: Float = 0f,
+        val percentGap: Float = 0f,
+    )
 
     /** Chunky, for the temperature. */
     private val bigFont by lazy { PixelFont(Typeface.createFromAsset(assets, "fonts/Jersey10.ttf"), 0.535f, 0f) }
 
     /**
      * For everything else; its glyphs sit one font pixel below the baseline. Thickened,
-     * since it's thinner than the lettering in the artwork.
+     * since it's thinner than the lettering in the artwork, and shadowed one stroke
+     * width away, to stand out from a pale daytime sky. Its `%` fills its whole cell,
+     * so it would touch the digit before it.
      */
     private val smallFont by lazy {
-        PixelFont(Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"), 0.815f, 0.0275f, fakeBold = true)
+        PixelFont(
+            Typeface.createFromAsset(assets, "fonts/DotGothic16.ttf"),
+            capHeight = 0.815f,
+            belowBaseline = 0.0275f,
+            fakeBold = true,
+            shadowOffset = 0.0725f,
+            percentGap = 0.08f,
+        )
     }
 
     fun draw(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: Style, width: Int, height: Int) {
@@ -109,18 +134,34 @@ internal class InfoOverlay(private val assets: AssetManager) {
             paint.isFakeBoldText = font.fakeBold
             val left = x(xUnits)
             val capPixels = capUnits / SceneLayout.UNITS * b.height
-            paint.fitText(value, capPixels / (font.capHeight + font.belowBaseline), maxX - left)
+            val gaps = value.count { it == '%' } * font.percentGap
+            paint.fitText(value, capPixels / (font.capHeight + font.belowBaseline), maxX - left, gaps)
+            val baseline = y(bottomUnits) - font.belowBaseline * paint.textSize
+            val percentGap = font.percentGap * paint.textSize
+            if (font.shadowOffset > 0f) {
+                val offset = font.shadowOffset * paint.textSize
+                paint.color = SCENE_SHADOW
+                canvas.drawSpaced(value, left + offset, baseline + offset, percentGap, paint)
+            }
             paint.color = colour
-            canvas.drawText(value, left, y(bottomUnits) - font.belowBaseline * paint.textSize, paint)
+            canvas.drawSpaced(value, left, baseline, percentGap, paint)
         }
 
         with(layout) {
+            val labelSize = labelCap * LABEL_SCALE
+            val smallSize = smallCap * VALUES_SCALE
+            // The condition grows down, keeping the artwork's gap below the temperature.
+            // Humidity and wind grow both ways, to stay centred on their icons; the
+            // direction moves down with the wind line above it.
+            val growth = smallSize - smallCap
             text(info.temperature, tempX, tempBottom, tempCap, leftEdge, big = true, colour = SCENE_TEXT)
-            text(info.condition, labelX, labelBottom, labelCap, leftEdge, big = false, colour = SCENE_LABEL)
-            info.place?.let { text(it, placeX, placeBottom, smallCap, rightEdge, big = false, colour = SCENE_TEXT) }
-            info.humidity?.let { text(it, valuesX, humidityBottom, smallCap, rightEdge, big = false, colour = SCENE_TEXT) }
-            text(info.wind, valuesX, windBottom, smallCap, rightEdge, big = false, colour = SCENE_TEXT)
-            info.windDirection?.let { text(it, valuesX, directionBottom, smallCap, rightEdge, big = false, colour = SCENE_TEXT) }
+            text(info.condition, labelX, labelBottom + labelSize - labelCap, labelSize, leftEdge, big = false, colour = SCENE_LABEL)
+            info.place?.let { text(it, placeX, placeBottom, smallSize, rightEdge, big = false, colour = SCENE_TEXT) }
+            info.humidity?.let { text(it, valuesX, humidityBottom + growth / 2, smallSize, rightEdge, big = false, colour = SCENE_TEXT) }
+            text(info.wind, valuesX, windBottom + growth / 2, smallSize, rightEdge, big = false, colour = SCENE_TEXT)
+            info.windDirection?.let {
+                text(it, valuesX, directionBottom + growth * 1.5f, smallSize, rightEdge, big = false, colour = SCENE_TEXT)
+            }
         }
     }
 
@@ -147,19 +188,20 @@ internal class InfoOverlay(private val assets: AssetManager) {
         }
 
         text(info.temperature, margin, h * 0.19f, h * 0.17f, bold = true)
-        text(info.condition, margin, h * 0.26f, h * 0.055f, bold = false)
+        text(info.condition, margin, h * 0.31f, h * 0.055f * VALUES_SCALE, bold = false)
 
         val right = w - margin
-        var baseline = h * 0.09f
+        var baseline = h * 0.12f
         info.place?.let {
-            text(it, right, baseline, h * 0.05f, bold = true, alignRight = true)
-            baseline += h * 0.065f
+            text(it, right, baseline, h * 0.05f * VALUES_SCALE, bold = true, alignRight = true)
+            baseline += h * 0.065f * VALUES_SCALE
         }
         info.humidityLabelled?.let {
-            text(it, right, baseline, h * 0.045f, bold = false, alignRight = true)
-            baseline += h * 0.06f
+            text(it, right, baseline, h * 0.045f * VALUES_SCALE, bold = false, alignRight = true)
+            baseline += h * 0.06f * VALUES_SCALE
         }
-        text(listOfNotNull(info.wind, info.windDirection).joinToString(" "), right, baseline, h * 0.045f, bold = false, alignRight = true)
+        val wind = listOfNotNull(info.wind, info.windDirection).joinToString(" ")
+        text(wind, right, baseline, h * 0.045f * VALUES_SCALE, bold = false, alignRight = true)
     }
 
     private companion object {
@@ -168,12 +210,37 @@ internal class InfoOverlay(private val assets: AssetManager) {
         val SKY_SHADE = 0x59000000
         val SCENE_TEXT = 0xFFF0F2F8.toInt()
         val SCENE_LABEL = 0xFFBCCAEA.toInt()
+        val SCENE_SHADOW = 0xAA141A38.toInt()
 
-        /** Sets the text size, shrinking it until [text] fits [maxWidth]. */
-        fun Paint.fitText(text: String, size: Float, maxWidth: Float) {
+        /** How much larger than in the mock-ups the condition under the temperature is, over the icons. */
+        const val LABEL_SCALE = 1.25f
+
+        /** How much larger than in the mock-ups the place, humidity and wind are, and in the sky the condition. */
+        const val VALUES_SCALE = 1.5f
+
+        /**
+         * Sets the text size, shrinking it until [text] fits [maxWidth], with
+         * [extraSpace] (a fraction of the text size) added to its width.
+         */
+        fun Paint.fitText(text: String, size: Float, maxWidth: Float, extraSpace: Float = 0f) {
             textSize = size
-            val measured = measureText(text)
+            val measured = measureText(text) + extraSpace * size
             if (measured > maxWidth && measured > 0f) textSize = (size * maxWidth / measured).coerceAtLeast(1f)
+        }
+
+        /** Draws [text] with [percentGap] pixels of extra space before each `%`. */
+        fun Canvas.drawSpaced(text: String, x: Float, y: Float, percentGap: Float, paint: Paint) {
+            if (percentGap <= 0f) return drawText(text, x, y, paint)
+            var cursor = x
+            text.split('%').forEachIndexed { i, part ->
+                if (i > 0) {
+                    cursor += percentGap
+                    drawText("%", cursor, y, paint)
+                    cursor += paint.measureText("%")
+                }
+                drawText(part, cursor, y, paint)
+                cursor += paint.measureText(part)
+            }
         }
     }
 }
