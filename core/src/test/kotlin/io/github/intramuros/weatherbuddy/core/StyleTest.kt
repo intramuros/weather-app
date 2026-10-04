@@ -43,5 +43,7 @@ class StyleTest {
     fun slugsAreUnique() {
         assertEquals(Style.entries.size, Style.entries.map { it.slug }.toSet().size)
         assertEquals(Style.ANIME, Style.fromSlug("anime"))
+        assertEquals(Style.UKIYO_E, Style.fromSlug("ukiyo-e"))
+        assertEquals(Style.DELFT_BLUE, Style.fromSlug("delft-blue"))
     }
 }

@@ -402,7 +402,13 @@ private fun StyleCard(
                 )
             }
         }
-        Text(style.displayName, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 4.dp))
+        // Four cards share a phone's width, so a longer name wraps under its own card.
+        Text(
+            style.displayName,
+            style = MaterialTheme.typography.labelLarge,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp),
+        )
     }
 }
 
