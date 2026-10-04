@@ -43,6 +43,8 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   MainActivity           preview, forecast for the coming days, style picker
                          (once there's a choice), wallpaper switches, location,
                          credits
+  GalleryActivity        every picture of every style in a grid; tap one to see
+                         it whole and swipe through the rest
 
 tools/preview/         animated GIF previews of the live wallpaper (`run`)
 tools/scenes/          turns the pixel-art scene mock-ups into assets (`prepare.py`),
