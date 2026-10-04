@@ -65,8 +65,8 @@ data class WidgetInfo(
  *
  * Every line but the temperature is drawn larger than the mock-ups had it, to
  * be readable on a phone ([VALUES_SCALE]). Over the icons, the temperature
- * already fills the room under the weather icon, which leaves the condition
- * below it room for only [LABEL_SCALE].
+ * keeps its size, since it already fills the room under the weather icon, and
+ * the condition below it grows by [LABEL_SCALE], down towards the ground.
  */
 internal class InfoOverlay(private val assets: AssetManager) {
     /**
@@ -150,11 +150,12 @@ internal class InfoOverlay(private val assets: AssetManager) {
         with(layout) {
             val labelSize = labelCap * LABEL_SCALE
             val smallSize = smallCap * VALUES_SCALE
+            // The condition grows down, keeping the artwork's gap below the temperature.
             // Humidity and wind grow both ways, to stay centred on their icons; the
             // direction moves down with the wind line above it.
             val growth = smallSize - smallCap
             text(info.temperature, tempX, tempBottom, tempCap, leftEdge, big = true, colour = SCENE_TEXT)
-            text(info.condition, labelX, labelBottom, labelSize, leftEdge, big = false, colour = SCENE_LABEL)
+            text(info.condition, labelX, labelBottom + labelSize - labelCap, labelSize, leftEdge, big = false, colour = SCENE_LABEL)
             info.place?.let { text(it, placeX, placeBottom, smallSize, rightEdge, big = false, colour = SCENE_TEXT) }
             info.humidity?.let { text(it, valuesX, humidityBottom + growth / 2, smallSize, rightEdge, big = false, colour = SCENE_TEXT) }
             text(info.wind, valuesX, windBottom + growth / 2, smallSize, rightEdge, big = false, colour = SCENE_TEXT)
@@ -211,7 +212,7 @@ internal class InfoOverlay(private val assets: AssetManager) {
         val SCENE_LABEL = 0xFFBCCAEA.toInt()
         val SCENE_SHADOW = 0xAA141A38.toInt()
 
-        /** How much larger than in the mock-ups the condition under the temperature is. */
+        /** How much larger than in the mock-ups the condition under the temperature is, over the icons. */
         const val LABEL_SCALE = 1.25f
 
         /** How much larger than in the mock-ups the place, humidity and wind are, and in the sky the condition. */
