@@ -18,8 +18,8 @@ Every scene gets the same three parts, then the scene's own line:
    The top third stays quiet sky for the widget's text and the lock screen's
    clock. No text, frame or watermark.
 2. [`style.txt`](style.txt): the medium, her face, the halo, where the
-   ornament goes, how it paints each kind of weather, and how little
-   background to draw.
+   ornament goes, how it paints each kind of weather, and that, as in
+   his posters, there is no place behind her.
 3. The scene's line (weather, warmth and outfit) from the table in
    [`../anime/PROMPTS.md`](../anime/PROMPTS.md).
 
