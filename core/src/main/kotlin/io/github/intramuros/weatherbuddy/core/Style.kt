@@ -26,6 +26,11 @@ enum class Style(
     UKIYO_E("ukiyo-e", "Ukiyo-e", pixelated = false, fps = 24, hasWidgetIcons = false),
     DELFT_BLUE("delft-blue", "Delft blue", pixelated = false, fps = 24, hasWidgetIcons = false),
     MUCHA("mucha", "Mucha", pixelated = false, fps = 24, hasWidgetIcons = false),
+    VAN_GOGH("van-gogh", "Van Gogh", pixelated = false, fps = 24, hasWidgetIcons = false),
+    WATERCOLOUR("watercolour", "Watercolour", pixelated = false, fps = 24, hasWidgetIcons = false),
+    PAPER_CUT("paper-cut", "Paper cut", pixelated = false, fps = 24, hasWidgetIcons = false),
+    ART_DECO("art-deco", "Art Deco", pixelated = false, fps = 24, hasWidgetIcons = false),
+    POP_ART("pop-art", "Pop art", pixelated = false, fps = 24, hasWidgetIcons = false),
     ;
 
     /** The picture, as a path in the app's assets. */
@@ -76,6 +81,46 @@ enum class Style(
             ParticleKind.HAILSTONE -> ParticleLook(0xFFF3EBDA.toInt(), 0.5)
             ParticleKind.STREAK -> ParticleLook(0x668AA6BE.toInt(), 0.3)
             ParticleKind.LEAF -> ParticleLook(0xFFD08A3A.toInt(), 0.6)
+        }
+        // Thick strokes of paint: cobalt rain, cream dabs of snow, chrome-yellow leaves.
+        VAN_GOGH -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0xB33A5BA8.toInt(), 0.55)
+            ParticleKind.FLAKE -> ParticleLook(0xF2FFF8E7.toInt(), 0.8)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFFF5F0E0.toInt(), 0.6)
+            ParticleKind.STREAK -> ParticleLook(0x80FFF8E7.toInt(), 0.45)
+            ParticleKind.LEAF -> ParticleLook(0xFFE8A33A.toInt(), 0.7)
+        }
+        // Soft, see-through washes: fine grey-blue rain and paper-white snow.
+        WATERCOLOUR -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0x8C6E8FB8.toInt(), 0.35)
+            ParticleKind.FLAKE -> ParticleLook(0xF2FFFFFF.toInt(), 0.55)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFFF0F4F8.toInt(), 0.5)
+            ParticleKind.STREAK -> ParticleLook(0x66FFFFFF.toInt(), 0.3)
+            ParticleKind.LEAF -> ParticleLook(0xFFD9822B.toInt(), 0.55)
+        }
+        // Opaque strips and punched dots of card, a little wider than the others.
+        PAPER_CUT -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0xE65A8FD0.toInt(), 0.5)
+            ParticleKind.FLAKE -> ParticleLook(0xFFFFFFFF.toInt(), 0.8)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFFF4F4F4.toInt(), 0.7)
+            ParticleKind.STREAK -> ParticleLook(0x99E8F1FA.toInt(), 0.4)
+            ParticleKind.LEAF -> ParticleLook(0xFFE8892B.toInt(), 0.8)
+        }
+        // Fine, perfectly straight cream lines, like the poster's own rain.
+        ART_DECO -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0x99D9E4EC.toInt(), 0.3)
+            ParticleKind.FLAKE -> ParticleLook(0xF2FFF6E0.toInt(), 0.6)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFFF4EEDF.toInt(), 0.5)
+            ParticleKind.STREAK -> ParticleLook(0x80F7EBCF.toInt(), 0.3)
+            ParticleKind.LEAF -> ParticleLook(0xFFD98A3C.toInt(), 0.6)
+        }
+        // Bold comic colours: solid blue rain, white snow, black speed lines, red leaves.
+        POP_ART -> when (kind) {
+            ParticleKind.DROP -> ParticleLook(0xFF1E73D8.toInt(), 0.5)
+            ParticleKind.FLAKE -> ParticleLook(0xFFFFFFFF.toInt(), 0.8)
+            ParticleKind.HAILSTONE -> ParticleLook(0xFFFFFFFF.toInt(), 0.7)
+            ParticleKind.STREAK -> ParticleLook(0x99111111.toInt(), 0.4)
+            ParticleKind.LEAF -> ParticleLook(0xFFE52521.toInt(), 0.7)
         }
     }
 

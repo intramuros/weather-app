@@ -17,6 +17,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,6 +64,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -186,14 +188,21 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
 
             if (state.styles.size > 1) {
                 Text(stringResource(R.string.style), style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // More styles than fit across a phone, so the row scrolls, starting at the chosen one.
+                val styleScroll = rememberScrollState()
+                val cardStep = with(LocalDensity.current) { (STYLE_CARD_WIDTH + STYLE_CARD_GAP).roundToPx() }
+                LaunchedEffect(Unit) { styleScroll.scrollTo(state.styles.indexOf(settings.style).coerceAtLeast(0) * cardStep) }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(STYLE_CARD_GAP),
+                    modifier = Modifier.horizontalScroll(styleScroll),
+                ) {
                     state.styles.forEach { style ->
                         StyleCard(
                             style = style,
                             thumbnail = state.thumbnails[style],
                             selected = style == settings.style,
                             onClick = { vm.selectStyle(style) },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.width(STYLE_CARD_WIDTH),
                         )
                     }
                 }
@@ -373,6 +382,10 @@ private fun zoneOrDefault(id: String?): ZoneId = try {
     ZoneId.systemDefault()
 }
 
+/** Wide enough for the longest style name ("Watercolour") on one line. */
+private val STYLE_CARD_WIDTH = 88.dp
+private val STYLE_CARD_GAP = 12.dp
+
 /** Less than this over a day (mm) isn't worth showing. */
 private const val RAIN_THRESHOLD_MM = 0.1
 
@@ -406,7 +419,7 @@ private fun StyleCard(
                 )
             }
         }
-        // Four cards share a phone's width, so a longer name wraps under its own card.
+        // A two-word name may wrap under its card.
         Text(
             style.displayName,
             style = MaterialTheme.typography.labelLarge,
