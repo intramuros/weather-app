@@ -11,7 +11,7 @@ set as the home and/or lock screen wallpaper.
 | Platform | Android first |
 | Art styles | **Pixel art**, **Anime**, **Ukiyo-e**, **Delft blue**, **Mucha**, **Van Gogh**, **Watercolour**, **Paper cut**, **Art Deco** and **Pop art** (all but pixel art made with ChatGPT from the pixel-art scenes: `tools/scenes/<style>/PROMPTS.md`; the originals are in `tools/scenes/<style>/source/`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw were first tried as layers combined on the device, with placeholder art, and dropped; they came back as finished pictures like anime.) |
 | Image production | Finished scenes, one per kind of weather and warmth, bundled with the app (offline, free) |
-| Character | The same girl in every scene, drawn the way her style draws women. Pixel art and anime put her on an Amsterdam canal; every other style gives her a setting and composition from its own tradition (a Hiroshige dyke, a Delft tile vignette, van Gogh's Arles), so the styles look distinct |
+| Character | The same girl in every scene, a young East Asian woman with long dark brunette hair, drawn the way her style draws women. Pixel art and anime put her on an Amsterdam canal; every other style gives her a setting and composition from its own tradition (a Hiroshige dyke, a Delft tile vignette, van Gogh's Arles), so the styles look distinct |
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
 | Forecast | Open-Meteo using KNMI HARMONIE (`models=knmi_seamless`) |
 | Rain nowcast | Buienradar `raintext` (2 h ahead, 5-minute steps) |
