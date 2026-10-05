@@ -11,6 +11,7 @@ import io.github.intramuros.weatherbuddy.Refresher
 import io.github.intramuros.weatherbuddy.core.RenderPlan
 import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
+import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.Settings
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
@@ -48,10 +49,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val store = WeatherStore(app)
 
     private val _state = MutableStateFlow(UiState())
+    val state: StateFlow<UiState> = _state.asStateFlow()
 
     /** The picture the style thumbnails show. */
     private var thumbnailPicture: ScenePicture? = null
-    val state: StateFlow<UiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch { settingsRepo.settings.collect { s -> _state.update { it.copy(settings = s) } } }
@@ -59,8 +60,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             loadFromDisk()
             val snapshot = state.value.snapshot
             val age = snapshot?.let { System.currentTimeMillis() - it.fetchedAtMillis }
+            // A new place can be saved while its weather failed to come, leaving the old place's.
+            val elsewhere = snapshot?.location != (settingsRepo.current().location ?: Location.DEFAULT)
             // Older snapshots need hourly forecasts even when their weather is still fresh.
-            refreshNow(fetch = age == null || age > STALE_AFTER_MS || snapshot?.conditions?.hourly?.isEmpty() == true)
+            val incomplete = snapshot?.conditions?.hourly?.isEmpty() == true
+            refreshNow(fetch = age == null || age > STALE_AFTER_MS || elsewhere || incomplete)
             // Finding the phone can take many seconds, so the saved place's weather comes first.
             if (LocationProvider.hasPermission(app)) followLocation()
         }

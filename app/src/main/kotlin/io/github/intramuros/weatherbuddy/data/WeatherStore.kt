@@ -10,7 +10,12 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 @Serializable
-data class WeatherSnapshot(val conditions: Conditions, val fetchedAtMillis: Long)
+data class WeatherSnapshot(
+    val conditions: Conditions,
+    val fetchedAtMillis: Long,
+    /** Where the weather is for; `null` in snapshots saved before this was kept. */
+    val location: Location? = null,
+)
 
 /**
  * The last fetched weather and the preview rendered from it, kept as files so

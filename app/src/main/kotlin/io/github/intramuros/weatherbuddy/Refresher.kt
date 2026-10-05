@@ -51,8 +51,9 @@ object Refresher {
         var stale = false
         val snapshot = if (fetch) {
             try {
-                val conditions = WeatherClient.fetch(settings.location ?: Location.DEFAULT)
-                WeatherSnapshot(conditions, System.currentTimeMillis()).also { store.saveSnapshot(it) }
+                val location = settings.location ?: Location.DEFAULT
+                val conditions = WeatherClient.fetch(location)
+                WeatherSnapshot(conditions, System.currentTimeMillis(), location).also { store.saveSnapshot(it) }
             } catch (e: IOException) {
                 Log.w(TAG, "fetch failed", e)
                 stale = true
