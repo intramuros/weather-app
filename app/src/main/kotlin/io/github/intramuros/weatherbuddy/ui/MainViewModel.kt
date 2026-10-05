@@ -21,6 +21,7 @@ import io.github.intramuros.weatherbuddy.render.Compositor
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -53,6 +54,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     /** The picture the style thumbnails show. */
     private var thumbnailPicture: ScenePicture? = null
+    private var thumbnailJob: Job? = null
 
     init {
         viewModelScope.launch { settingsRepo.settings.collect { s -> _state.update { it.copy(settings = s) } } }
@@ -139,14 +141,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         val style = settingsRepo.current().style
         val live = withContext(Dispatchers.Default) { LiveRenderer(app.assets, plan, style) }
         _state.update { it.copy(live = live) }
-        // A thumbnail shows only the picture, so it stays as long as the picture does.
+        // A thumbnail shows only the picture, so it stays as long as the picture does. Drawing
+        // ten of them takes a moment, so it runs alongside and a refresh doesn't wait for it.
         if (styles.size > 1 && plan.picture != thumbnailPicture) {
-            val compositor = Compositor(app.assets)
-            val thumbnails = withContext(Dispatchers.Default) {
-                styles.associateWith { compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT) }
-            }
             thumbnailPicture = plan.picture
-            _state.update { it.copy(thumbnails = thumbnails) }
+            thumbnailJob?.cancel()
+            thumbnailJob = viewModelScope.launch {
+                val compositor = Compositor(app.assets)
+                val thumbnails = withContext(Dispatchers.Default) {
+                    styles.associateWith { compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT) }
+                }
+                _state.update { it.copy(thumbnails = thumbnails) }
+            }
         }
     }
 
