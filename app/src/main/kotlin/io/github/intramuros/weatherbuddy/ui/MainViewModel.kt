@@ -104,9 +104,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private suspend fun followLocation() {
         val location = LocationProvider.current(app) ?: return
         val settings = settingsRepo.current()
-        if (location == settings.location && settings.placeName != null) return
-        settingsRepo.setLocation(location, LocationProvider.placeName(app, location))
-        refreshNow(fetch = true)
+        val moved = location != settings.location
+        if (!moved && settings.placeName != null) return
+        val placeName = LocationProvider.placeName(app, location)
+        settingsRepo.setLocation(location, placeName)
+        // The weather for an unchanged place is already up; a newly found name only needs the widget redrawn.
+        if (moved) refreshNow(fetch = true) else if (placeName != null) refreshNow(fetch = false)
     }
 
     private suspend fun refreshNow(fetch: Boolean) {
