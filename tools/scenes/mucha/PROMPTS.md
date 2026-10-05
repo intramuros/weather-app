@@ -3,8 +3,9 @@
 The app's Mucha style is the same 30 scenes as pixel art, redrawn as
 an Art Nouveau poster in the manner of Alphonse Mucha. They were made with ChatGPT's image generation through
 the Codex CLI (`codex exec`), one scene per call, with the matching
-pixel-art picture as the reference, so the sky, outfit and layout stay right
-for the weather the app picks it for. The originals are in `source/`.
+pixel-art picture as the reference, so the sky and outfit stay right for
+the weather the app picks it for; the setting and composition are the
+style's own, not the pixel-art canal. The originals are in `source/`.
 
 ## The prompt
 
