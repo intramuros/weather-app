@@ -9,7 +9,7 @@ set as the home and/or lock screen wallpaper.
 | Topic | Decision |
 |---|---|
 | Platform | Android first |
-| Art styles | **Pixel art**, **Anime**, **Ukiyo-e**, **Delft blue** and **Mucha** (the last four made with ChatGPT from the pixel-art scenes: `tools/scenes/<style>/PROMPTS.md`; the originals are in `tools/scenes/<style>/source/`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw were first tried as layers combined on the device, with placeholder art, and dropped; they came back as finished pictures like anime.) |
+| Art styles | **Pixel art**, **Anime**, **Ukiyo-e**, **Delft blue**, **Mucha**, **Van Gogh**, **Watercolour**, **Paper cut**, **Art Deco** and **Pop art** (all but pixel art made with ChatGPT from the pixel-art scenes: `tools/scenes/<style>/PROMPTS.md`; the originals are in `tools/scenes/<style>/source/`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw were first tried as layers combined on the device, with placeholder art, and dropped; they came back as finished pictures like anime.) |
 | Image production | Finished scenes, one per kind of weather and warmth, bundled with the app (offline, free) |
 | Character | A girl on an Amsterdam canal, the same in every scene |
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
@@ -80,7 +80,9 @@ screen size), so a refresh every 30 minutes doesn't cause flicker.
   art, particles snap to the scene's pixel grid, so they look like part of
   the art; for the others they're smooth, thin lines and dots, coloured to
   match: glassy for anime, indigo rain for ukiyo-e, cobalt for Delft blue,
-  powder blue and cream for Mucha.
+  powder blue and cream for Mucha, thick paint strokes for Van Gogh, soft
+  washes for watercolour, strips of card for paper cut, fine cream lines for
+  Art Deco, and solid comic blue with black speed lines for pop art.
 - Applying a live wallpaper always needs the user to confirm it in the system
   wallpaper screen; the app opens that screen for them. While the animated
   wallpaper is active, the "still picture on home screen" option is ignored so
@@ -183,9 +185,8 @@ are there, and `StyleTest` fails on a half-finished style folder.
 
 To add a style: add a `Style` entry (slug, name, frame rate, particle looks),
 make its 30 pictures, and import them. `tools/scenes/anime/PROMPTS.md` is how
-the anime ones are made; `tools/scenes/ukiyo-e/`, `tools/scenes/delft-blue/` and
-`tools/scenes/mucha/` have the prompts and script that made those three with
-the Codex CLI.
+the anime ones are made; the other styles' folders in `tools/scenes/` have the
+prompts, and `codex_scene.sh` the script, that made them with the Codex CLI.
 
 ## Roadmap
 
@@ -195,8 +196,8 @@ the Codex CLI.
 4. ✅ Live wallpaper: particles, wind direction
 5. ✅ CI: tests, lint and an installable APK on every pull request; `master`
    publishes it
-6. ✅ Art: 30 finished scenes each in pixel art, anime, ukiyo-e, Delft blue
-   and Mucha
+6. ✅ Art: 30 finished scenes each in pixel art, anime and eight
+   painted styles
 7. ✅ Widget layout: place, temperature, condition, humidity and wind
 8. Polish: rain splashes, a forecast strip ("rain at 14:45"), pictures for
    the missing weather combinations, a private release key for a store

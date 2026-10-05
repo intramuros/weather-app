@@ -26,7 +26,8 @@ trap 'rm -rf "$work"' EXIT
   echo "Use your image generation tool once for this single image, then save it in the current directory as $slug.png. Reply with just the path."
 } > "$work/prompt.txt"
 images=(-i "$ROOT/app/src/main/assets/scenes/pixel-art/$slug.webp")
-for reference in "$@"; do images+=(-i "$reference"); done
+# Absolute paths: Codex runs in a scratch folder, where a relative path sends it searching.
+for reference in "$@"; do images+=(-i "$(realpath "$reference")"); done
 
 mkdir -p "$out"
 for _ in 1 2; do
