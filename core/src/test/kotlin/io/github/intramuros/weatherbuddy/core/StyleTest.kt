@@ -46,5 +46,10 @@ class StyleTest {
         assertEquals(Style.UKIYO_E, Style.fromSlug("ukiyo-e"))
         assertEquals(Style.DELFT_BLUE, Style.fromSlug("delft-blue"))
         assertEquals(Style.MUCHA, Style.fromSlug("mucha"))
+        assertEquals(Style.VAN_GOGH, Style.fromSlug("van-gogh"))
+        assertEquals(Style.WATERCOLOUR, Style.fromSlug("watercolour"))
+        assertEquals(Style.PAPER_CUT, Style.fromSlug("paper-cut"))
+        assertEquals(Style.ART_DECO, Style.fromSlug("art-deco"))
+        assertEquals(Style.POP_ART, Style.fromSlug("pop-art"))
     }
 }
