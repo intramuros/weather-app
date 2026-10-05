@@ -3,8 +3,9 @@
 The app's Ukiyo-e style is the same 30 scenes as pixel art, redrawn as
 a Japanese woodblock print, in the manner of Hiroshige and Hokusai. They were made with ChatGPT's image generation through
 the Codex CLI (`codex exec`), one scene per call, with the matching
-pixel-art picture as the reference, so the sky, outfit and layout stay right
-for the weather the app picks it for. The originals are in `source/`.
+pixel-art picture as the reference, so the sky and outfit stay right for
+the weather the app picks it for; the setting and composition are the
+style's own, not the pixel-art canal. The originals are in `source/`.
 
 ## The prompt
 
@@ -16,8 +17,8 @@ Every scene gets the same three parts, then the scene's own line:
    the weather is bold around her, and the background is sparse and pale.
    The top third stays quiet sky for the widget's text and the lock screen's
    clock. No text, frame or watermark.
-2. [`style.txt`](style.txt): the medium, how it paints each kind of weather,
-   and how little background to draw.
+2. [`style.txt`](style.txt): the medium, her face, how it paints each
+   kind of weather, and its own setting and composition.
 3. The scene's line (weather, warmth and outfit) from the table in
    [`../anime/PROMPTS.md`](../anime/PROMPTS.md).
 
