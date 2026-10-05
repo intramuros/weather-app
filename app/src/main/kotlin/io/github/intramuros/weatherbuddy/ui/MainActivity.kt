@@ -50,7 +50,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -88,16 +87,12 @@ import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.labelRes
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
-import java.time.DateTimeException
-import java.time.Duration
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZonedDateTime
 import java.time.format.DateTimeParseException
 import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
 import java.util.Date
 import kotlin.math.roundToInt
-import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -162,6 +157,13 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
                         contentScale = ContentScale.Crop,
                         filterQuality = if (settings?.style?.pixelated != false) FilterQuality.None else FilterQuality.Low,
                         modifier = Modifier.fillMaxSize(),
+                    )
+                }
+                state.snapshot?.let {
+                    HourlyStrip(
+                        it.conditions.hourly,
+                        it.conditions.timeZone,
+                        Modifier.align(Alignment.TopCenter),
                     )
                 }
                 if (state.busy) CircularProgressIndicator()
@@ -270,7 +272,7 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
  */
 @Composable
 private fun Forecast(days: List<DayForecast>, timeZone: String?) {
-    val today = rememberToday(remember(timeZone) { zoneOrDefault(timeZone) })
+    val today = rememberForecastTime(remember(timeZone) { zoneOrDefault(timeZone) }, ChronoUnit.DAYS).toLocalDate()
     val coming = days.mapNotNull { day ->
         val date = try {
             LocalDate.parse(day.date)
@@ -353,33 +355,6 @@ private fun dayName(date: LocalDate, today: LocalDate): String {
         // Some languages, Dutch among them, write day names in lower case.
         else -> date.dayOfWeek.getDisplayName(TextStyle.FULL, locale).replaceFirstChar { it.titlecase(locale) }
     }
-}
-
-/**
- * Today's date in [zone], kept current: checked again whenever the app comes
- * back to the front, and at midnight while it stays open.
- */
-@Composable
-private fun rememberToday(zone: ZoneId): LocalDate {
-    var today by remember(zone) { mutableStateOf(LocalDate.now(zone)) }
-    LifecycleResumeEffect(zone) {
-        today = LocalDate.now(zone)
-        onPauseOrDispose {}
-    }
-    LaunchedEffect(zone) {
-        while (true) {
-            val now = ZonedDateTime.now(zone)
-            today = now.toLocalDate()
-            delay(Duration.between(now, today.plusDays(1).atStartOfDay(zone)).toMillis() + 1_000)
-        }
-    }
-    return today
-}
-
-private fun zoneOrDefault(id: String?): ZoneId = try {
-    id?.let(ZoneId::of) ?: ZoneId.systemDefault()
-} catch (_: DateTimeException) {
-    ZoneId.systemDefault()
 }
 
 /** Wide enough for the longest style name ("Watercolour") on one line. */

@@ -57,7 +57,8 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 updateLocation()
             } else {
                 val age = state.value.snapshot?.let { System.currentTimeMillis() - it.fetchedAtMillis }
-                refreshNow(fetch = age == null || age > STALE_AFTER_MS)
+                // Older snapshots need hourly forecasts even when their weather is still fresh.
+                refreshNow(fetch = age == null || age > STALE_AFTER_MS || state.value.snapshot?.conditions?.hourly?.isEmpty() == true)
             }
         }
     }

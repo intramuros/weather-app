@@ -57,10 +57,14 @@
     <string name="coming_days">Coming days</string>
     <string name="today">Today</string>
     <string name="tomorrow">Tomorrow</string>
+    <string name="now">Now</string>
     <string name="degrees">%1$d°</string>
+    <string name="percent">%1$d%%</string>
     <string name="precipitation_mm">%1$.1f mm</string>
     <string name="day_description">%1$s: %2$s, %3$d° to %4$d°</string>
     <string name="day_rain_description">%1$.1f mm of precipitation</string>
+    <string name="hour_description">%1$s: %2$s, %3$d°</string>
+    <string name="hour_rain_description">%1$d%% chance of precipitation</string>
     <string name="error_offline">Couldn\'t reach the weather service; showing the last known weather.</string>
     <string name="error_location">Couldn\'t get your location.</string>
 </resources>
