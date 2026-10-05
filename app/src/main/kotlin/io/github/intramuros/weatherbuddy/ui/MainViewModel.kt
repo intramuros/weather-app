@@ -22,6 +22,8 @@ import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -56,9 +58,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private var thumbnailPicture: ScenePicture? = null
     private var thumbnailJob: Job? = null
 
+    /** The refresh and the quiet location check on opening. */
+    private val opening: Job
+
     init {
         viewModelScope.launch { settingsRepo.settings.collect { s -> _state.update { it.copy(settings = s) } } }
-        viewModelScope.launch {
+        opening = viewModelScope.launch {
             loadFromDisk()
             val snapshot = state.value.snapshot
             val age = snapshot?.let { System.currentTimeMillis() - it.fetchedAtMillis }
@@ -88,7 +93,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     /** Call after the location permission has been granted. */
-    fun useMyLocation() = viewModelScope.launch { updateLocation() }
+    fun useMyLocation() = viewModelScope.launch {
+        // The tap's own lookup takes over from the opening's, so the two can't both save a place.
+        opening.cancelAndJoin()
+        updateLocation()
+    }
 
     fun refresh() = viewModelScope.launch { refreshNow(fetch = true) }
 
@@ -149,7 +158,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             thumbnailJob = viewModelScope.launch {
                 val compositor = Compositor(app.assets)
                 val thumbnails = withContext(Dispatchers.Default) {
-                    styles.associateWith { compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT) }
+                    styles.associateWith {
+                        ensureActive() // Stops between styles once a newer picture has taken over.
+                        compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT)
+                    }
                 }
                 _state.update { it.copy(thumbnails = thumbnails) }
             }
