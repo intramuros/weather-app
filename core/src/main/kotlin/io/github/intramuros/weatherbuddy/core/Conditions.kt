@@ -28,9 +28,11 @@ data class Conditions(
     val rainNowcast: List<RainStep> = emptyList(),
     /** Today and the coming days, in date order. Empty in snapshots saved before it was fetched. */
     val forecast: List<DayForecast> = emptyList(),
+    /** Empty in snapshots saved before the hourly forecast was fetched. */
+    val hourly: List<HourForecast> = emptyList(),
     /**
      * The location's time zone (IANA, e.g. `Europe/Amsterdam`), which the [forecast]
-     * dates are local to. `null` in snapshots saved before it was fetched.
+     * dates and [hourly] times are local to. `null` in snapshots saved before it was fetched.
      */
     val timeZone: String? = null,
 ) {
@@ -63,4 +65,17 @@ data class DayForecast(
     /** Total over the day, in mm. */
     val precipitationMm: Double,
     val windGustsMaxKmh: Double,
+)
+
+/** One hour of the model forecast, without the radar nowcast. */
+@Serializable
+data class HourForecast(
+    /** The local time, as `yyyy-MM-ddTHH:mm`. */
+    val time: String,
+    val weatherCode: Int,
+    val temperatureC: Double,
+    /** KNMI may not provide a probability. */
+    val precipitationProbabilityPercent: Double?,
+    val precipitationMm: Double,
+    val isDay: Boolean,
 )

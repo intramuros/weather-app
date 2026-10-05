@@ -1,5 +1,6 @@
 package io.github.intramuros.weatherbuddy.core
 
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -29,6 +30,7 @@ class OpenMeteoTest {
         assertNull(c.uvIndex)
         assertTrue(c.rainNowcast.isEmpty())
         assertTrue(c.forecast.isEmpty())
+        assertTrue(c.hourly.isEmpty())
         assertNull(c.timeZone)
     }
 
@@ -61,6 +63,51 @@ class OpenMeteoTest {
     }
 
     @Test
+    fun parsesHourlyBlockLeavingOutMissingCodesAndTemperatures() {
+        val json = """{
+            "timezone": "Europe/Amsterdam",
+            "current": {"temperature_2m": 14.2, "weather_code": 3, "is_day": 1},
+            "hourly": {
+                "time": ["2026-10-03T17:00", "2026-10-03T18:00", "2026-10-03T19:00", "2026-10-03T20:00", "2026-10-03T21:00"],
+                "weather_code": [3, 61, null, 0, 2],
+                "temperature_2m": [14.2, 13.1, 12.0, null, 10.5],
+                "precipitation_probability": [20, null, 40, 0],
+                "precipitation": [0.0, 0.3, 1.0, 0.0, null],
+                "is_day": [1, 0, 0, 0, null]
+            }
+        }"""
+        val c = OpenMeteo.parse(json)
+        assertEquals("Europe/Amsterdam", c.timeZone)
+        assertEquals(
+            listOf(
+                HourForecast("2026-10-03T17:00", 3, 14.2, 20.0, 0.0, true),
+                HourForecast("2026-10-03T18:00", 61, 13.1, null, 0.3, false),
+                HourForecast("2026-10-03T21:00", 2, 10.5, null, 0.0, true),
+            ),
+            c.hourly,
+        )
+    }
+
+    @Test
+    fun hourlyOptionalFieldsCanBeAbsent() {
+        val c = OpenMeteo.parse("""{
+            "current": {"temperature_2m": 14.2, "weather_code": 3, "is_day": 1},
+            "hourly": {"time": ["2026-10-03T14:00"], "weather_code": [0], "temperature_2m": [15]}
+        }""")
+        assertEquals(listOf(HourForecast("2026-10-03T14:00", 0, 15.0, null, 0.0, true)), c.hourly)
+    }
+
+    @Test
+    fun olderSnapshotsDecodeWithoutHourlyForecast() {
+        val c = Json.decodeFromString<Conditions>("""{
+            "temperatureC": 14.2, "apparentTemperatureC": 13.0,
+            "windSpeedKmh": 10.0, "windGustsKmh": 15.0, "uvIndex": null,
+            "weatherCode": 3, "isDay": true, "precipitationMm": 0.0
+        }""")
+        assertTrue(c.hourly.isEmpty())
+    }
+
+    @Test
     fun missingTemperatureIsAnError() {
         val e = assertFailsWith<WeatherParseException> {
             OpenMeteo.parse("""{"current": {"weather_code": 0, "is_day": 1}}""")
@@ -80,5 +127,8 @@ class OpenMeteoTest {
         assertTrue("models=knmi_seamless" in url)
         assertTrue("&daily=" in url)
         assertTrue("forecast_days=${OpenMeteo.FORECAST_DAYS}" in url)
+        assertTrue("&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,is_day" in url)
+        assertTrue("&forecast_hours=12" in url)
+        assertTrue("timezone=auto" in url)
     }
 }

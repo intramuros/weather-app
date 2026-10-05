@@ -59,6 +59,15 @@ class SummaryTest {
     }
 
     @Test
+    fun hourlyScenesKeepDayNightAndCalmWind() {
+        val night = HourForecast("2026-10-04T01:00", 0, 8.0, null, 0.0, false)
+        assertEquals(Scene(Sky.CLEAR, Precipitation.NONE, TimeOfDay.NIGHT, Wind.CALM), Scene.from(night))
+        val rain = night.copy(weatherCode = 61, isDay = true)
+        assertEquals(Scene(Sky.OVERCAST, Precipitation.RAIN, TimeOfDay.DAY, Wind.CALM), Scene.from(rain))
+        assertEquals(Condition.RAIN, Condition.of(Scene.from(rain)))
+    }
+
+    @Test
     fun warmthBands() {
         assertEquals(Warmth.HOT, Warmth.of(25.0))
         assertEquals(Warmth.WARM, Warmth.of(21.0))
