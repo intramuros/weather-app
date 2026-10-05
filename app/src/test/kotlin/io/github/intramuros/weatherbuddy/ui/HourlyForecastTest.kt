@@ -4,7 +4,9 @@ import io.github.intramuros.weatherbuddy.core.HourForecast
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -24,6 +26,19 @@ class HourlyForecastTest {
         val hours = listOf(hour("2026-10-05T23:00"), hour("2026-10-06T00:00"), hour("2026-10-06T01:00"))
         assertEquals(hours, upcomingHours(hours, start).map { it.first })
         assertEquals(hours.drop(1), upcomingHours(hours, start.plusHours(1)).map { it.first })
+    }
+
+    @Test
+    fun missingCurrentHourKeepsFutureTimeLabels() {
+        val start = LocalDateTime.parse("2026-10-05T14:00")
+        val hours = listOf(hour("2026-10-05T15:00"), hour("2026-10-05T16:00"))
+        val coming = upcomingHours(hours, start)
+        val format24 = DateTimeFormatter.ofPattern("HH:mm", Locale.US)
+        val format12 = DateTimeFormatter.ofPattern("h a", Locale.US)
+        assertEquals(listOf("15:00", "16:00"), coming.map { hourName(it.second, start, format24, "Now") })
+        assertEquals(listOf("3 PM", "4 PM"), coming.map { hourName(it.second, start, format12, "Now") })
+        assertEquals("Now", hourName(start, start, format24, "Now"))
+        assertEquals("Now", hourName(start, start, format12, "Now"))
     }
 
     @Test

@@ -58,8 +58,8 @@ internal fun HourlyStrip(hours: List<HourForecast>, timeZone: String?, modifier:
                 .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.55f), Color.Transparent)))
                 .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 34.dp),
         ) {
-            coming.forEachIndexed { index, (hour, time) ->
-                val name = if (index == 0) stringResource(R.string.now) else time.format(formatter)
+            coming.forEach { (hour, time) ->
+                val name = hourName(time, start, formatter, stringResource(R.string.now))
                 HourColumn(hour, name, Modifier.weight(1f))
             }
             // Keep short forecasts in the same six-column layout.
@@ -107,6 +107,10 @@ private fun HourColumn(hour: HourForecast, name: String, modifier: Modifier) {
         )
     }
 }
+
+/** A missing current hour must not make a future hour read as "Now". */
+internal fun hourName(time: LocalDateTime, start: LocalDateTime, formatter: DateTimeFormatter, now: String): String =
+    if (time == start) now else time.format(formatter)
 
 /** Keep the current local hour, but leave out expired or malformed entries. */
 internal fun upcomingHours(hours: List<HourForecast>, start: LocalDateTime): List<Pair<HourForecast, LocalDateTime>> =
