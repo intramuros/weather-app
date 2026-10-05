@@ -13,8 +13,10 @@ import io.github.intramuros.weatherbuddy.core.Style
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
 
+@Serializable
 data class Location(val latitude: Double, val longitude: Double) {
     companion object {
         /** KNMI's home, roughly the middle of the Netherlands. */
