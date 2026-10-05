@@ -9,6 +9,7 @@ import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
 import io.github.intramuros.weatherbuddy.core.RenderPlan
+import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.Settings
@@ -47,19 +48,21 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val store = WeatherStore(app)
 
     private val _state = MutableStateFlow(UiState())
+
+    /** The picture the style thumbnails show. */
+    private var thumbnailPicture: ScenePicture? = null
     val state: StateFlow<UiState> = _state.asStateFlow()
 
     init {
         viewModelScope.launch { settingsRepo.settings.collect { s -> _state.update { it.copy(settings = s) } } }
         viewModelScope.launch {
             loadFromDisk()
-            if (LocationProvider.hasPermission(app)) {
-                updateLocation()
-            } else {
-                val age = state.value.snapshot?.let { System.currentTimeMillis() - it.fetchedAtMillis }
-                // Older snapshots need hourly forecasts even when their weather is still fresh.
-                refreshNow(fetch = age == null || age > STALE_AFTER_MS || state.value.snapshot?.conditions?.hourly?.isEmpty() == true)
-            }
+            val snapshot = state.value.snapshot
+            val age = snapshot?.let { System.currentTimeMillis() - it.fetchedAtMillis }
+            // Older snapshots need hourly forecasts even when their weather is still fresh.
+            refreshNow(fetch = age == null || age > STALE_AFTER_MS || snapshot?.conditions?.hourly?.isEmpty() == true)
+            // Finding the phone can take many seconds, so the saved place's weather comes first.
+            if (LocationProvider.hasPermission(app)) followLocation()
         }
     }
 
@@ -97,6 +100,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         refreshNow(fetch = true)
     }
 
+    /** Follows the phone to a new place, quietly: if it can't be found, the saved place stays. */
+    private suspend fun followLocation() {
+        val location = LocationProvider.current(app) ?: return
+        val settings = settingsRepo.current()
+        if (location == settings.location && settings.placeName != null) return
+        settingsRepo.setLocation(location, LocationProvider.placeName(app, location))
+        refreshNow(fetch = true)
+    }
+
     private suspend fun refreshNow(fetch: Boolean) {
         _state.update { it.copy(busy = true, message = null) }
         val message = when (val result = Refresher.run(app, fetch)) {
@@ -109,21 +121,26 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private suspend fun loadFromDisk() {
         val (snapshot, preview) = withContext(Dispatchers.IO) { store.loadSnapshot() to store.loadPreview() }
-        val style = settingsRepo.current().style
         val styles = settingsRepo.availableStyles
-        val (thumbnails, live) = snapshot?.let { snap ->
-            withContext(Dispatchers.Default) {
-                val plan = RenderPlan.plan(snap.conditions)
-                val compositor = Compositor(app.assets)
-                val thumbnails = if (styles.size > 1) {
-                    styles.associateWith { compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT) }
-                } else {
-                    emptyMap()
-                }
-                thumbnails to LiveRenderer(app.assets, plan, style)
+        // The last weather shows straight away; the moving picture and the thumbnails follow.
+        _state.update { it.copy(snapshot = snapshot, preview = preview, styles = styles) }
+        if (snapshot == null) {
+            _state.update { it.copy(thumbnails = emptyMap(), live = null) }
+            return
+        }
+        val plan = RenderPlan.plan(snapshot.conditions)
+        val style = settingsRepo.current().style
+        val live = withContext(Dispatchers.Default) { LiveRenderer(app.assets, plan, style) }
+        _state.update { it.copy(live = live) }
+        // A thumbnail shows only the picture, so it stays as long as the picture does.
+        if (styles.size > 1 && plan.picture != thumbnailPicture) {
+            val compositor = Compositor(app.assets)
+            val thumbnails = withContext(Dispatchers.Default) {
+                styles.associateWith { compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT) }
             }
-        } ?: (emptyMap<Style, Bitmap>() to null)
-        _state.update { it.copy(snapshot = snapshot, preview = preview, styles = styles, thumbnails = thumbnails, live = live) }
+            thumbnailPicture = plan.picture
+            _state.update { it.copy(thumbnails = thumbnails) }
+        }
     }
 
     private companion object {
