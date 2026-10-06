@@ -52,6 +52,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -102,24 +104,32 @@ class MainActivity : ComponentActivity() {
     /** Whether the user went to a screen opened from here: the gallery, the wallpaper picker or a link. */
     private var openedScreen = false
 
+    /** Whether the app is being left, rather than turned or covered by a screen of its own. */
+    private val leaving get() = !openedScreen && !isChangingConfigurations
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             WeatherBuddyTheme {
-                val scroll = rememberScrollState()
+                // Leaving the app opens it at the top next time, even if the phone has to restore it
+                // from saved state; coming back from a screen opened here doesn't.
+                val scroll = rememberSaveable(saver = Saver(save = { if (leaving) 0 else it.value }, restore = { ScrollState(it) })) {
+                    ScrollState(0)
+                }
                 val scope = rememberCoroutineScope()
                 LifecycleStartEffect(Unit) {
-                    onStopOrDispose {
-                        // Leaving the app opens it at the top next time; coming back from a screen opened here doesn't.
-                        // scrollTo also stops a fling still under way, which would carry it back down.
-                        if (!openedScreen && !isChangingConfigurations) scope.launch { scroll.scrollTo(0) }
-                        openedScreen = false
-                    }
+                    // scrollTo also stops a fling still under way, which would carry it back down.
+                    onStopOrDispose { if (leaving) scope.launch { scroll.scrollTo(0) } }
                 }
                 SettingsScreen(scroll)
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        openedScreen = false
     }
 
     override fun startActivity(intent: Intent, options: Bundle?) {
