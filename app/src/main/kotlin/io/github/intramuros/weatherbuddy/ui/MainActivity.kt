@@ -16,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -75,6 +76,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.intramuros.weatherbuddy.R
@@ -95,13 +97,34 @@ import java.util.Date
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
+    /** Whether the user went to a screen opened from here: the gallery, the wallpaper picker or a link. */
+    private var openedScreen = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             WeatherBuddyTheme {
-                SettingsScreen()
+                val scroll = rememberScrollState()
+                LifecycleStartEffect(Unit) {
+                    onStopOrDispose {
+                        // Leaving the app opens it at the top next time; coming back from a screen opened here doesn't.
+                        if (!openedScreen && !isChangingConfigurations) scroll.dispatchRawDelta(-scroll.value.toFloat())
+                        openedScreen = false
+                    }
+                }
+                SettingsScreen(scroll)
             }
+        }
+    }
+
+    override fun startActivity(intent: Intent, options: Bundle?) {
+        openedScreen = true
+        try {
+            super.startActivity(intent, options)
+        } catch (e: ActivityNotFoundException) {
+            openedScreen = false
+            throw e
         }
     }
 }
@@ -120,7 +143,7 @@ internal fun WeatherBuddyTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(vm: MainViewModel = viewModel()) {
+private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val requestLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -136,7 +159,7 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
         Column(
             modifier = Modifier
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
