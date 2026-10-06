@@ -16,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -50,6 +51,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -75,6 +79,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.intramuros.weatherbuddy.R
@@ -87,6 +92,7 @@ import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.labelRes
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.time.format.TextStyle
@@ -95,13 +101,44 @@ import java.util.Date
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
+    /** Whether the user went to a screen opened from here: the gallery, the wallpaper picker or a link. */
+    private var openedScreen = false
+
+    /** Whether the app is being left, rather than turned or covered by a screen of its own. */
+    private val leaving get() = !openedScreen && !isChangingConfigurations
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             WeatherBuddyTheme {
-                SettingsScreen()
+                // Leaving the app opens it at the top next time, even if the phone has to restore it
+                // from saved state; coming back from a screen opened here doesn't.
+                val scroll = rememberSaveable(saver = Saver(save = { if (leaving) 0 else it.value }, restore = { ScrollState(it) })) {
+                    ScrollState(0)
+                }
+                val scope = rememberCoroutineScope()
+                LifecycleStartEffect(Unit) {
+                    // scrollTo also stops a fling still under way, which would carry it back down.
+                    onStopOrDispose { if (leaving) scope.launch { scroll.scrollTo(0) } }
+                }
+                SettingsScreen(scroll)
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        openedScreen = false
+    }
+
+    override fun startActivity(intent: Intent, options: Bundle?) {
+        openedScreen = true
+        try {
+            super.startActivity(intent, options)
+        } catch (e: ActivityNotFoundException) {
+            openedScreen = false
+            throw e
         }
     }
 }
@@ -120,7 +157,7 @@ internal fun WeatherBuddyTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SettingsScreen(vm: MainViewModel = viewModel()) {
+private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val requestLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -136,7 +173,7 @@ private fun SettingsScreen(vm: MainViewModel = viewModel()) {
         Column(
             modifier = Modifier
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
