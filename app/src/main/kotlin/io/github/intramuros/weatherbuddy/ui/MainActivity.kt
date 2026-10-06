@@ -51,6 +51,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -89,6 +90,7 @@ import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.labelRes
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 import java.time.format.TextStyle
@@ -106,10 +108,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             WeatherBuddyTheme {
                 val scroll = rememberScrollState()
+                val scope = rememberCoroutineScope()
                 LifecycleStartEffect(Unit) {
                     onStopOrDispose {
                         // Leaving the app opens it at the top next time; coming back from a screen opened here doesn't.
-                        if (!openedScreen && !isChangingConfigurations) scroll.dispatchRawDelta(-scroll.value.toFloat())
+                        // scrollTo also stops a fling still under way, which would carry it back down.
+                        if (!openedScreen && !isChangingConfigurations) scope.launch { scroll.scrollTo(0) }
                         openedScreen = false
                     }
                 }
