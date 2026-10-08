@@ -18,7 +18,6 @@ import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import io.github.intramuros.weatherbuddy.render.Compositor
-import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -39,8 +38,6 @@ data class UiState(
     val styles: List<Style> = emptyList(),
     /** The current weather drawn in every available style, for the style picker. */
     val thumbnails: Map<Style, Bitmap> = emptyMap(),
-    /** Draws the animated preview. */
-    val live: LiveRenderer? = null,
     /** Whether our animated wallpaper is the current home screen wallpaper. */
     val liveWallpaperActive: Boolean = false,
     val busy: Boolean = false,
@@ -140,16 +137,13 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private suspend fun loadFromDisk() {
         val (snapshot, preview) = withContext(Dispatchers.IO) { store.loadSnapshot() to store.loadPreview() }
         val styles = settingsRepo.availableStyles
-        // The last weather shows straight away; the moving picture and the thumbnails follow.
+        // The last weather shows straight away; the thumbnails follow.
         _state.update { it.copy(snapshot = snapshot, preview = preview, styles = styles) }
         if (snapshot == null) {
-            _state.update { it.copy(thumbnails = emptyMap(), live = null) }
+            _state.update { it.copy(thumbnails = emptyMap()) }
             return
         }
         val plan = RenderPlan.plan(snapshot.conditions)
-        val style = settingsRepo.current().style
-        val live = withContext(Dispatchers.Default) { LiveRenderer(app.assets, plan, style) }
-        _state.update { it.copy(live = live) }
         // A thumbnail shows only the picture, so it stays as long as the picture does. Drawing
         // ten of them takes a moment, so it runs alongside and a refresh doesn't wait for it.
         if (styles.size > 1 && plan.picture != thumbnailPicture) {

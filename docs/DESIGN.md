@@ -15,6 +15,7 @@ set as the home and/or lock screen wallpaper.
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
 | Forecast | Open-Meteo using KNMI HARMONIE (`models=knmi_seamless`) |
 | Rain nowcast | Buienradar `raintext` (2 h ahead, 5-minute steps) |
+| Radar loop (main screen) | RainViewer tiles (last ~90 min, 10-minute steps; forecast frames only if offered) over CARTO/OpenStreetMap base tiles |
 | Language | **Kotlin** throughout. Pure logic sits in a plain Kotlin module (`core/`), so it can become Kotlin Multiplatform if iOS ever happens. |
 | Location | Coarse, read only while the app is open, rounded to ~1 km. No background-location permission; the background refresh reuses the last saved location (default: De Bilt). Its town name comes from the platform `Geocoder`, when it has one. |
 
@@ -94,6 +95,7 @@ screen size), so a refresh every 30 minutes doesn't cause flicker.
 |---|---|---|---|
 | Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV; per day for 5 days: weather code, high/low, rain total, strongest gust | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
 | Buienradar `gpsgadget.buienradar.nl/data/raintext` | rain right now + next 2 h | none | Free if we credit buienradar.nl with a link. Show this in the app's About/credits. |
+| RainViewer `api.rainviewer.com/public/weather-maps.json` + `tilecache.rainviewer.com` | animated radar on the main screen | none | Free with credit to rainviewer.com (shown on the map); zoom limited to 7, past frames only at the time of writing. Base map: CARTO/OpenStreetMap tiles, credited on the map. |
 | *Fallbacks* | | | |
 | KNMI Data Platform | official open data (CC-BY 4.0) | free key | Raw NetCDF/HDF5, so better processed on a server |
 | MET Norway `api.met.no` | forecast | none (User-Agent required) | CC-BY 4.0 |

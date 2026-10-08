@@ -4,6 +4,10 @@
     <string name="widget_name">Weather Buddy</string>
     <string name="widget_description">Your buddy, dressed for the weather outside</string>
     <string name="widget_empty">Tap to set up</string>
+    <string name="radar_loading">Loading radar…</string>
+    <string name="radar_unavailable">Radar unavailable</string>
+    <string name="radar_forecast">%1$s (forecast)</string>
+    <string name="radar_credit">Radar: RainViewer · Map: © OpenStreetMap, © CARTO</string>
     <string name="buddy_description">A character dressed for the current weather</string>
     <string name="humidity_description">humidity %1$s</string>
     <string name="wind_description">wind %1$s</string>
