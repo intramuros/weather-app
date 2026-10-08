@@ -33,7 +33,6 @@ import kotlinx.coroutines.withContext
 data class UiState(
     val settings: Settings? = null,
     val snapshot: WeatherSnapshot? = null,
-    val preview: Bitmap? = null,
     /** The styles that can be picked; the picker only shows when there's a choice. */
     val styles: List<Style> = emptyList(),
     /** The current weather drawn in every available style, for the style picker. */
@@ -135,10 +134,10 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun loadFromDisk() {
-        val (snapshot, preview) = withContext(Dispatchers.IO) { store.loadSnapshot() to store.loadPreview() }
+        val snapshot = withContext(Dispatchers.IO) { store.loadSnapshot() }
         val styles = settingsRepo.availableStyles
         // The last weather shows straight away; the thumbnails follow.
-        _state.update { it.copy(snapshot = snapshot, preview = preview, styles = styles) }
+        _state.update { it.copy(snapshot = snapshot, styles = styles) }
         if (snapshot == null) {
             _state.update { it.copy(thumbnails = emptyMap()) }
             return

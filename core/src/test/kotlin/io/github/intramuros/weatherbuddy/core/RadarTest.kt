@@ -41,7 +41,7 @@ class RadarTest {
             "https://tilecache.rainviewer.com/v2/radar/a/256/7/65/42/2/1_1.png",
             Radar.radarTileUrl(parsed, parsed.frames[0], TileId(7, 65, 42)),
         )
-        assertEquals("https://c.basemaps.cartocdn.com/dark_all/7/65/42.png", Radar.baseTileUrl(TileId(7, 65, 42), dark = true))
+        assertEquals("https://tile.openstreetmap.org/7/65/42.png", Radar.baseTileUrl(TileId(7, 65, 42)))
     }
 
     @Test

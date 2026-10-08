@@ -58,9 +58,9 @@ object Radar {
     fun radarTileUrl(index: RadarIndex, frame: RadarFrame, tile: TileId): String =
         "${index.host}${frame.path}/256/${tile.z}/${tile.x}/${tile.y}/2/1_1.png"
 
-    fun baseTileUrl(tile: TileId, dark: Boolean): String =
-        "https://${"abc"[Math.floorMod(tile.x + tile.y, 3)]}.basemaps.cartocdn.com/" +
-            "${if (dark) "dark_all" else "light_all"}/${tile.z}/${tile.x}/${tile.y}.png"
+    /** Standard OpenStreetMap tiles; no API key, with attribution and HTTP caching required. */
+    fun baseTileUrl(tile: TileId): String =
+        "https://tile.openstreetmap.org/${tile.z}/${tile.x}/${tile.y}.png"
 
     /** Web Mercator position of a coordinate at [zoom]. */
     fun project(latitude: Double, longitude: Double, zoom: Int): TilePoint {

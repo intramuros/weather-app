@@ -3,7 +3,6 @@ package io.github.intramuros.weatherbuddy.ui
 import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -73,7 +72,6 @@ private const val PARALLEL_FETCHES = 6
  */
 @Composable
 internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
-    val dark = isSystemInDarkTheme()
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var size by remember { mutableStateOf(IntSize.Zero) }
@@ -108,12 +106,12 @@ internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
         }
     }
 
-    LaunchedEffect(lifecycle, index, refresh, window, dark) {
+    LaunchedEffect(lifecycle, index, refresh, window) {
         val current = index ?: return@LaunchedEffect
         if (window.isEmpty()) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             val frames = current.frames.takeLast(FRAMES_SHOWN)
-            val wanted = window.map { Radar.baseTileUrl(it, dark) } +
+            val wanted = window.map { Radar.baseTileUrl(it) } +
                 frames.flatMap { frame -> window.map { Radar.radarTileUrl(current, frame, it) } }
             tiles.keys.retainAll(wanted.toSet())
             ready.removeAll { frame ->
@@ -125,7 +123,7 @@ internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
                 permits.withPermit { RadarClient.tile(url) }?.asImageBitmap()
             }
             // The map and the newest picture first, so something shows early; older frames fill in the loop.
-            load(window.map { Radar.baseTileUrl(it, dark) })
+            load(window.map { Radar.baseTileUrl(it) })
             frames.asReversed().forEach { frame ->
                 if (load(window.map { Radar.radarTileUrl(current, frame, it) })) {
                     if (frame !in ready) {
@@ -159,7 +157,7 @@ internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
             .clickable { playing = !playing },
     ) {
         Canvas(Modifier.fillMaxSize()) {
-            drawTiles(window, center.x, center.y, tilePx) { tile -> tiles[Radar.baseTileUrl(tile, dark)] }
+            drawTiles(window, center.x, center.y, tilePx) { tile -> tiles[Radar.baseTileUrl(tile)] }
             if (frame != null && currentIndex != null) {
                 drawTiles(window, center.x, center.y, tilePx, alpha = 0.85f) { tile ->
                     tiles[Radar.radarTileUrl(currentIndex, frame, tile)]
@@ -189,7 +187,7 @@ internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
             modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 22.dp),
         )
         Text(
-            stringResource(R.string.radar_credit),
+            radarCreditText(stringResource(R.string.radar_credit)),
             style = TextStyle(color = Color.White, shadow = shadow, fontSize = 10.sp),
             modifier = Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 4.dp),
         )

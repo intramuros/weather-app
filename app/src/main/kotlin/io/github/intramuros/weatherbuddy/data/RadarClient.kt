@@ -2,6 +2,8 @@ package io.github.intramuros.weatherbuddy.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.http.HttpResponseCache
+import android.util.Log
 import io.github.intramuros.weatherbuddy.core.Radar
 import io.github.intramuros.weatherbuddy.core.RadarIndex
 import io.github.intramuros.weatherbuddy.core.WeatherParseException
@@ -27,7 +29,8 @@ object RadarClient {
     suspend fun tile(url: String): Bitmap? = withContext(Dispatchers.IO) {
         try {
             get(url).let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w("RadarClient", "Tile unavailable from ${URL(url).host}", e)
             null
         }
     }
@@ -37,12 +40,18 @@ object RadarClient {
         try {
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
-            connection.setRequestProperty("User-Agent", "WeatherBuddy/0.1 (Android)")
+            connection.setRequestProperty("User-Agent", "WeatherBuddy/0.2 (Android; +https://github.com/intramuros/weather-app)")
             val code = connection.responseCode
             if (code !in 200..299) throw IOException("HTTP $code from ${URL(url).host}")
             return connection.inputStream.use { it.readBytes() }
         } finally {
             connection.disconnect()
+            // Persist completed responses even if Android kills the process after leaving the map.
+            try {
+                HttpResponseCache.getInstalled()?.flush()
+            } catch (e: IOException) {
+                Log.w("RadarClient", "HTTP cache could not be flushed", e)
+            }
         }
     }
 }
