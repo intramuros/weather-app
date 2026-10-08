@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -85,7 +86,7 @@ internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
     var shown by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(true) }
 
-    val density = context.resources.displayMetrics.density
+    val density = LocalDensity.current.density
     val tilePx = TILE_DP * density
     val center = remember(location) { Radar.project(location.latitude, location.longitude, ZOOM) }
     val window = remember(center, size, tilePx) {
