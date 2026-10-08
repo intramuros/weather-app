@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -49,6 +50,7 @@ import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.RadarClient
 import java.io.IOException
 import java.time.Instant
+import java.time.format.DateTimeFormatter
 import java.util.Date
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -61,8 +63,13 @@ private const val REFRESH_MS = 5 * 60 * 1000L
 
 /** A forecast map driven by the histogram's shared timestamp. Tap either view to pause both. */
 @Composable
-internal fun RadarMap(location: Location, playback: RainPlayback, modifier: Modifier = Modifier) {
+internal fun RadarMap(location: Location, playback: RainPlayback, modifier: Modifier = Modifier, timeZone: String? = null) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    val use24Hours = DateFormat.is24HourFormat(context)
+    val formatter = remember(locale, use24Hours, timeZone) {
+        DateTimeFormatter.ofPattern(if (use24Hours) "HH:mm" else "h:mm a", locale).withZone(zoneOrDefault(timeZone))
+    }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var size by remember { mutableStateOf(IntSize.Zero) }
     var frames by remember(location) { mutableStateOf<List<ForecastRadarFrame>>(emptyList()) }
@@ -135,7 +142,7 @@ internal fun RadarMap(location: Location, playback: RainPlayback, modifier: Modi
             drawCircle(Color(0xFFE53935), 5.dp.toPx(), middle)
             drawCircle(Color.Black.copy(alpha = 0.4f), 7.dp.toPx(), middle, style = Stroke(1.dp.toPx()))
         }
-        val clock = time?.let { DateFormat.getTimeFormat(context).format(Date(it.toEpochMilli())) }
+        val clock = time?.let(formatter::format)
         val label = when {
             !covered -> stringResource(R.string.radar_outside_forecast)
             frame != null -> stringResource(R.string.radar_forecast, clock.orEmpty())

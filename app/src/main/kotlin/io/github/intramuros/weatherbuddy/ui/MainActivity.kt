@@ -180,7 +180,7 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
                     .clip(RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                RadarMap(settings?.location ?: Location.DEFAULT, playback, Modifier.fillMaxSize())
+                RadarMap(settings?.location ?: Location.DEFAULT, playback, Modifier.fillMaxSize(), state.snapshot?.conditions?.timeZone)
                 state.snapshot?.let {
                     HourlyStrip(
                         it.conditions.hourly,
