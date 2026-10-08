@@ -16,6 +16,9 @@ import java.net.URL
 /** Fetches the RainViewer radar index and the map tiles the radar view draws. */
 object RadarClient {
     private const val TIMEOUT_MS = 10_000
+    // One process-wide budget for the index and all radar tiles, including retries and new viewports.
+    // 80 requests/minute leaves room below RainViewer's 100 requests/IP/minute limit.
+    private val rainViewerRequests = RequestPacer(intervalMs = 750)
 
     /**
      * @throws IOException if RainViewer can't be reached.
@@ -35,8 +38,10 @@ object RadarClient {
         }
     }
 
-    private fun get(url: String): ByteArray {
-        val connection = URL(url).openConnection() as HttpURLConnection
+    private suspend fun get(url: String): ByteArray {
+        val target = URL(url)
+        if (target.host != "tile.openstreetmap.org") rainViewerRequests.awaitTurn()
+        val connection = target.openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = TIMEOUT_MS
             connection.readTimeout = TIMEOUT_MS
