@@ -26,9 +26,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Test, lint and build
-        env:
-          VERSION_CODE: ${{ github.run_number }}
-        run: ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+        run: VERSION_CODE=$((67 + ${{ github.run_number }})) ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk weather-buddy.apk
@@ -44,7 +42,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create rain-histogram weather-buddy.apk \
+          gh release create rain-histogram-${{ github.run_number }} weather-buddy.apk \
             --target "$GITHUB_SHA" \
             --title "Rain histogram build (#${{ github.run_number }})" \
             --notes "Built from \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}. Download weather-buddy.apk on your phone to install or update." \
