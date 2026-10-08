@@ -14,7 +14,6 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
@@ -50,20 +49,16 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -88,9 +83,9 @@ import io.github.intramuros.weatherbuddy.core.DayForecast
 import io.github.intramuros.weatherbuddy.core.Scene
 import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.core.TimeOfDay
+import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.labelRes
-import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -184,18 +179,7 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
                     .clip(RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center,
             ) {
-                val live = state.live
-                if (live != null) {
-                    LivePreview(live, Modifier.fillMaxSize())
-                } else state.preview?.let {
-                    Image(
-                        bitmap = it.asImageBitmap(),
-                        contentDescription = stringResource(R.string.buddy_description),
-                        contentScale = ContentScale.Crop,
-                        filterQuality = if (settings?.style?.pixelated != false) FilterQuality.None else FilterQuality.Low,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+                RadarMap(settings?.location ?: Location.DEFAULT, Modifier.fillMaxSize())
                 state.snapshot?.let {
                     HourlyStrip(
                         it.conditions.hourly,
@@ -461,22 +445,6 @@ private fun SwitchRow(
         }
         Spacer(Modifier.width(8.dp))
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
-    }
-}
-
-/** Runs the same renderer as the wallpaper, stepping at the style's frame rate. */
-@Composable
-private fun LivePreview(renderer: LiveRenderer, modifier: Modifier = Modifier) {
-    var seconds by remember(renderer) { mutableDoubleStateOf(0.0) }
-    LaunchedEffect(renderer) {
-        val start = withFrameNanos { it }
-        while (true) {
-            withFrameNanos { now -> seconds = renderer.quantize((now - start) / 1e9) }
-        }
-    }
-    Canvas(modifier) {
-        val t = seconds
-        drawIntoCanvas { renderer.draw(it.nativeCanvas, size.width.toInt(), size.height.toInt(), t) }
     }
 }
 

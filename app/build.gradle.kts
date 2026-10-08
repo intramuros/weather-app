@@ -63,4 +63,5 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
 
     testImplementation(kotlin("test-junit"))
+    testImplementation(libs.kotlinx.coroutines.test)
 }

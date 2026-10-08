@@ -31,14 +31,11 @@ sealed interface RefreshResult {
 }
 
 /**
- * Fetch → plan → render → publish (preview, widget and, if enabled, wallpaper).
+ * Fetch → plan → publish (widget and, if enabled, wallpaper).
  * Shared by the background worker and the settings screen.
  */
 object Refresher {
     private const val TAG = "Refresher"
-
-    const val PREVIEW_WIDTH = 540
-    const val PREVIEW_HEIGHT = 1200
 
     private val mutex = Mutex()
 
@@ -68,11 +65,6 @@ object Refresher {
         } ?: return@withLock RefreshResult.NoData
 
         val plan = RenderPlan.plan(snapshot.conditions)
-        val compositor = Compositor(app.assets)
-        withContext(Dispatchers.Default) {
-            val preview = compositor.render(plan, settings.style, PREVIEW_WIDTH, PREVIEW_HEIGHT)
-            withContext(Dispatchers.IO) { store.savePreview(preview) }
-        }
         // The widget draws its own picture, in its shape.
         WeatherWidget().updateAll(app)
         WeatherUpdates.notifyChanged()
@@ -87,7 +79,7 @@ object Refresher {
             val key = "$flags|${w}x$h|${settings.style.slug}|${plan.picture.slug}"
             if (key != settings.wallpaperKey) {
                 try {
-                    val bitmap = withContext(Dispatchers.Default) { compositor.render(plan, settings.style, w, h) }
+                    val bitmap = withContext(Dispatchers.Default) { Compositor(app.assets).render(plan, settings.style, w, h) }
                     withContext(Dispatchers.IO) {
                         WallpaperManager.getInstance(app).setBitmap(bitmap, null, true, flags)
                     }

@@ -19,8 +19,7 @@ import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /**
- * Draws a [RenderPlan] at any moment in time: the live wallpaper and the
- * in-app preview.
+ * Draws a [RenderPlan] at any moment in time for the live wallpaper.
  *
  * The picture is loaded once, so a frame is one bitmap draw plus the
  * particles. For pixel art, particles snap to the scene's pixel grid, so they

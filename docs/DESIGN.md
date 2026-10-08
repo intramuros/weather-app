@@ -15,6 +15,7 @@ set as the home and/or lock screen wallpaper.
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
 | Forecast | Open-Meteo using KNMI HARMONIE (`models=knmi_seamless`) |
 | Rain nowcast | Buienradar `raintext` (2 h ahead, 5-minute steps) |
+| Radar loop (main screen) | RainViewer tiles (last ~90 min, 10-minute steps; forecast frames only if offered) over standard OpenStreetMap base tiles |
 | Language | **Kotlin** throughout. Pure logic sits in a plain Kotlin module (`core/`), so it can become Kotlin Multiplatform if iOS ever happens. |
 | Location | Coarse, read only while the app is open, rounded to ~1 km. No background-location permission; the background refresh reuses the last saved location (default: De Bilt). Its town name comes from the platform `Geocoder`, when it has one. |
 
@@ -30,7 +31,7 @@ core/                  pure Kotlin/JVM, no Android
 app/                   Android (Compose, Glance, WorkManager, DataStore)
   RefreshWorker          every 30 min while online, and on the widget's
                          refresh button
-  Refresher              fetch → plan → Compositor → save preview
+  Refresher              fetch → plan → update widget and optional still wallpaper
                          → update widget → set wallpaper if enabled and changed
   Compositor             draws the picture from assets/scenes/<style>/ into a Bitmap
   LiveRenderer           draws the plan at any moment: the picture, then the
@@ -40,7 +41,7 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
                          condition, humidity, wind
   WeatherWidget          Glance widget drawing the last weather's picture in its
                          own shape, with a refresh button in the bottom-right corner
-  MainActivity           preview, forecast for the coming days, style picker
+  MainActivity           rain radar, hourly and daily forecast, style picker
                          (once there's a choice), wallpaper switches, location,
                          credits
   GalleryActivity        every picture of every style in a grid; tap one to see
@@ -94,6 +95,8 @@ screen size), so a refresh every 30 minutes doesn't cause flicker.
 |---|---|---|---|
 | Open-Meteo `/v1/forecast?models=knmi_seamless` | temperature, feels-like, humidity, wind speed/direction/gusts, WMO weather code, day/night, UV; per day for 5 days: weather code, high/low, rain total, strongest gust | none | Free for non-commercial use (< 10k calls/day). A commercial release needs a paid plan or a switch to KNMI open data. |
 | Buienradar `gpsgadget.buienradar.nl/data/raintext` | rain right now + next 2 h | none | Free if we credit buienradar.nl with a link. Show this in the app's About/credits. |
+| RainViewer `api.rainviewer.com/public/weather-maps.json` + `tilecache.rainviewer.com` | animated radar on the main screen | none | Free for personal/educational use with a linked credit to rainviewer.com (shown on the map); zoom limited to 7, past frames only at the time of writing. The index and radar tiles share a process-wide pacer (750 ms between request starts, at most 80 per minute), below the provider's 100 requests/IP/minute limit. Large views load older frames gradually; foreground cancellation stops queued waits. |
+| OpenStreetMap `tile.openstreetmap.org/{z}/{x}/{y}.png` | radar base map | none | [Tile usage policy](https://operations.osmfoundation.org/policies/tiles/): visible © OpenStreetMap contributors credit, an identifying User-Agent, persistent HTTP caching and only tiles for the visible map. The app installs a 50 MiB HTTP cache that honours server caching headers and conditionally revalidates stale responses. Standard tiles are used in both themes. CARTO was removed because its basemaps now require an API key and return watermarked tiles without one. |
 | *Fallbacks* | | | |
 | KNMI Data Platform | official open data (CC-BY 4.0) | free key | Raw NetCDF/HDF5, so better processed on a server |
 | MET Norway `api.met.no` | forecast | none (User-Agent required) | CC-BY 4.0 |
