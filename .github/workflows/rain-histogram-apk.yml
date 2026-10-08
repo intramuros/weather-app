@@ -40,7 +40,7 @@ jobs:
           assert len(times) > 1, "No forecast frames"
           assert max(parsed) > datetime.now(timezone.utc), "Map feed has no future frames"
           with request(times[-1]["url"]) as response:
-              assert response.read(8) == b"\\x89PNG\\r\\n\\x1a\\n", "Forecast image is not a PNG"
+              assert response.read(8) == bytes.fromhex("89504e470d0a1a0a"), "Forecast image is not a PNG"
           print("Verified", len(times), "forecast images from", min(parsed).isoformat(), "through", max(parsed).isoformat())
           PY
 
