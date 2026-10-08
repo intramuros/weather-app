@@ -70,6 +70,11 @@
     <string name="rain_starts">Rain expected at %1$s</string>
     <string name="rain_available_until">Forecast available until %1$s</string>
     <string name="rain_source">5-minute forecast · Buienradar</string>
+    <string name="rain_play">Play</string>
+    <string name="rain_pause">Pause</string>
+    <string name="radar_outside_forecast">Forecast map unavailable outside this region</string>
+    <string name="radar_time_unavailable">%1$s · Map forecast unavailable</string>
+    <string name="forecast_radar_credit">Radar: Buienradar · Map: © OpenStreetMap contributors</string>
     <string name="today">Today</string>
     <string name="tomorrow">Tomorrow</string>
     <string name="now">Now</string>

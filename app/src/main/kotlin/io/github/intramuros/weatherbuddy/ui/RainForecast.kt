@@ -15,11 +15,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -41,9 +39,9 @@ import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.core.Conditions
+import io.github.intramuros.weatherbuddy.core.ForecastRadar
 import io.github.intramuros.weatherbuddy.core.RainHistogram
 import io.github.intramuros.weatherbuddy.core.RainInterval
-import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
 import java.text.NumberFormat
 import java.time.Duration
@@ -55,17 +53,10 @@ import kotlin.math.roundToInt
 
 /** The next two hours, with real five-minute intensities rather than rain probabilities. */
 @Composable
-internal fun RainForecast(snapshot: WeatherSnapshot?, location: Location, modifier: Modifier = Modifier) {
+internal fun RainForecast(snapshot: WeatherSnapshot?, playback: RainPlayback, modifier: Modifier = Modifier) {
     val clock = rememberForecastTime(RainHistogram.zone, ChronoUnit.MINUTES).toInstant()
     val windowStart = clock.minusSeconds((clock.atZone(RainHistogram.zone).minute % 5) * 60L)
-    val intervals = remember(snapshot, location, clock) {
-        // A failed location refresh can leave weather saved for the previous place.
-        if (snapshot == null || snapshot.location != location) emptyList() else RainHistogram.intervals(
-            snapshot.conditions.rainNowcast,
-            Instant.ofEpochMilli(snapshot.fetchedAtMillis),
-            clock,
-        )
-    }
+    val intervals = playback.intervals
     val locale = LocalConfiguration.current.locales[0]
     val use24Hours = DateFormat.is24HourFormat(LocalContext.current)
     val zone = remember(snapshot?.conditions?.timeZone) { zoneOrDefault(snapshot?.conditions?.timeZone) }
@@ -73,7 +64,7 @@ internal fun RainForecast(snapshot: WeatherSnapshot?, location: Location, modifi
         DateTimeFormatter.ofPattern(if (use24Hours) "HH:mm" else "h:mm a", locale).withZone(zone)
     }
     val numbers = remember(locale) { NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 2 } }
-    var selected by remember(intervals) { mutableIntStateOf(0) }
+    val selected = playback.time?.let { ForecastRadar.intervalAt(intervals, it) } ?: -1
     val point = intervals.getOrNull(selected)
     val selectedLabel = point?.let {
         stringResource(R.string.rain_interval, formatter.format(it.start), formatter.format(it.end), it.mmPerHour)
@@ -82,7 +73,12 @@ internal fun RainForecast(snapshot: WeatherSnapshot?, location: Location, modifi
     val source = stringResource(R.string.rain_source)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.rain_forecast), style = MaterialTheme.typography.titleMedium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            Text(stringResource(R.string.rain_forecast), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            TextButton(onClick = playback::toggle, enabled = intervals.size > 1) {
+                Text(stringResource(if (playback.playing) R.string.rain_pause else R.string.rain_play))
+            }
+        }
         Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (intervals.isEmpty()) {
@@ -96,12 +92,12 @@ internal fun RainForecast(snapshot: WeatherSnapshot?, location: Location, modifi
                     }
                     Text(summary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     Text(selectedLabel.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = blue)
-                    RainPlot(intervals, windowStart, selected, numbers, formatter, blue) { selected = it }
+                    RainPlot(intervals, windowStart, selected, numbers, formatter, blue) { playback.select(intervals[it].start) }
                     if (intervals.size > 1) {
                         val description = stringResource(R.string.rain_inspect)
                         Slider(
-                            value = selected.toFloat(),
-                            onValueChange = { selected = it.roundToInt().coerceIn(intervals.indices) },
+                            value = selected.coerceAtLeast(0).toFloat(),
+                            onValueChange = { playback.select(intervals[it.roundToInt().coerceIn(intervals.indices)].start) },
                             valueRange = 0f..intervals.lastIndex.toFloat(),
                             steps = (intervals.size - 2).coerceAtLeast(0),
                             modifier = Modifier.fillMaxWidth().semantics {
