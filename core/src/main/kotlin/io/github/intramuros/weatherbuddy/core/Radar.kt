@@ -3,17 +3,23 @@ package io.github.intramuros.weatherbuddy.core
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import java.net.URI
+import java.time.Instant
+import java.time.format.DateTimeParseException
 import kotlin.math.PI
 import kotlin.math.floor
 import kotlin.math.ln
 import kotlin.math.pow
 import kotlin.math.tan
 
-/** One radar picture: [timeSeconds] is Unix time, [path] locates its tiles on the tile host. */
-data class RadarFrame(val timeSeconds: Long, val path: String)
+/** A georeferenced Buienradar picture; timestamps without an offset in the feed are UTC. */
+data class RadarFrame(val timeSeconds: Long, val url: String, val isForecast: Boolean)
 
-/** The radar pictures on offer, oldest first. [forecastFrames] counts the trailing ones that are predictions. */
-data class RadarIndex(val host: String, val frames: List<RadarFrame>, val forecastFrames: Int)
+/** Current and future pictures, oldest first, sampled at roughly ten-minute intervals. */
+data class RadarIndex(val frames: List<RadarFrame>)
+
+/** A rectangle in Web Mercator tile units, used to position the country-wide forecast overlay. */
+data class TileRect(val x: Double, val y: Double, val width: Double, val height: Double)
 
 /** A slippy-map tile; [x] and [y] count from the top left of the world at zoom [z]. */
 data class TileId(val z: Int, val x: Int, val y: Int)
@@ -22,41 +28,65 @@ data class TileId(val z: Int, val x: Int, val y: Int)
 data class TilePoint(val x: Double, val y: Double)
 
 /**
- * RainViewer's radar mosaic (free, needs a credit to rainviewer.com) over OpenStreetMap-style base tiles.
- *
- * The index lists the last couple of hours of 10-minute pictures; forecast frames only appear when
- * RainViewer offers them, so callers must cope with there being none.
+ * Buienradar's rain forecast over OpenStreetMap base tiles. The WebmercatorNL image product covers
+ * longitude 0–10° and latitude 49.5–54.8°. Downloaded frames retain the provider's timestamps.
  */
 object Radar {
-    const val INDEX_URL = "https://api.rainviewer.com/public/weather-maps.json"
-
-    /** The most detailed zoom the free radar tiles serve. */
-    const val MAX_ZOOM = 7
+    const val FRAME_WIDTH = 640
+    const val FRAME_HEIGHT = 554
+    const val INDEX_URL = "https://image.buienradar.nl/2.0/metadata/sprite/RadarMapRainWebmercatorNL" +
+        "?width=$FRAME_WIDTH&height=$FRAME_HEIGHT&extension=png" +
+        "&renderBackground=false&renderText=false&renderBranding=false&history=0&forecast=36&skip=0"
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** @throws WeatherParseException if [text] isn't a usable RainViewer index. */
-    fun parseIndex(text: String): RadarIndex {
+    /** @throws WeatherParseException if the feed is malformed or contains no future pictures. */
+    fun parseIndex(text: String, nowSeconds: Long): RadarIndex {
         val raw = try {
             json.decodeFromString<RawIndex>(text)
         } catch (e: SerializationException) {
-            throw WeatherParseException("invalid RainViewer response", e)
+            throw WeatherParseException("invalid Buienradar forecast response", e)
         } catch (e: IllegalArgumentException) {
-            throw WeatherParseException("invalid RainViewer response", e)
+            throw WeatherParseException("invalid Buienradar forecast response", e)
         }
-        val past = raw.radar.past.sortedBy { it.time }
-        val forecast = raw.radar.nowcast.sortedBy { it.time }
-        if (past.isEmpty()) throw WeatherParseException("RainViewer has no radar pictures")
-        return RadarIndex(
-            host = raw.host.trimEnd('/'),
-            frames = (past + forecast).map { RadarFrame(it.time, it.path) },
-            forecastFrames = forecast.size,
-        )
+        val available = raw.times.map { frame ->
+            val time = try {
+                // Buienradar uses ISO timestamps without a zone. Explicit offsets are accepted too.
+                val stamp = if (frame.timestamp.endsWith('Z') || frame.timestamp.drop(10).contains('+') ||
+                    frame.timestamp.drop(10).contains('-')) frame.timestamp else frame.timestamp + "Z"
+                Instant.parse(stamp).epochSecond
+            } catch (e: DateTimeParseException) {
+                throw WeatherParseException("invalid Buienradar forecast timestamp", e)
+            }
+            val uri = try { URI(frame.url) } catch (e: IllegalArgumentException) {
+                throw WeatherParseException("invalid Buienradar image URL", e)
+            } catch (e: java.net.URISyntaxException) {
+                throw WeatherParseException("invalid Buienradar image URL", e)
+            }
+            if (uri.scheme != "https" || uri.host?.endsWith(".buienradar.nl") != true) {
+                throw WeatherParseException("invalid Buienradar image host")
+            }
+            RadarFrame(time, frame.url, isForecast = time > nowSeconds)
+        }.filter { it.timeSeconds in (nowSeconds - 10 * 60)..(nowSeconds + 3 * 60 * 60) }
+            .sortedBy { it.timeSeconds }.distinctBy { it.timeSeconds }
+        if (available.none { it.isForecast }) throw WeatherParseException("Buienradar has no future rain pictures")
+        // Full-country bitmaps cost more memory than individual tiles. Keep the whole forecast horizon
+        // at ten-minute intervals (about twenty images), always retaining its final available picture.
+        val sampled = mutableListOf<RadarFrame>()
+        for (frame in available) {
+            if (sampled.isEmpty() || frame.timeSeconds - sampled.last().timeSeconds >= 10 * 60) sampled.add(frame)
+        }
+        if (sampled.last() != available.last()) sampled.add(available.last())
+        return RadarIndex(sampled)
     }
 
-    /** Colour scheme 2 ("Universal Blue"), smoothed, with snow shown. */
-    fun radarTileUrl(index: RadarIndex, frame: RadarFrame, tile: TileId): String =
-        "${index.host}${frame.path}/256/${tile.z}/${tile.x}/${tile.y}/2/1_1.png"
+    fun covers(latitude: Double, longitude: Double): Boolean = latitude in 49.5..54.8 && longitude in 0.0..10.0
+
+    fun forecastArea(zoom: Int): TileRect {
+        val nw = project(54.8, 0.0, zoom)
+        val se = project(49.5, 10.0, zoom)
+        return TileRect(nw.x, nw.y, se.x - nw.x, se.y - nw.y)
+    }
 
     /** Standard OpenStreetMap tiles; no API key, with attribution and HTTP caching required. */
     fun baseTileUrl(tile: TileId): String =
@@ -87,11 +117,8 @@ object Radar {
     private const val MAX_LATITUDE = 85.0511
 
     @Serializable
-    private class RawIndex(val host: String, val radar: RawRadar)
+    private class RawIndex(val times: List<RawFrame>)
 
     @Serializable
-    private class RawRadar(val past: List<RawFrame> = emptyList(), val nowcast: List<RawFrame> = emptyList())
-
-    @Serializable
-    private class RawFrame(val time: Long, val path: String)
+    private class RawFrame(val timestamp: String, val url: String)
 }

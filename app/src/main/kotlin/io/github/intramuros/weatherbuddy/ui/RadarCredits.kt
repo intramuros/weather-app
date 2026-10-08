@@ -7,7 +7,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 internal fun radarCreditText(credit: String) = buildAnnotatedString {
     append(credit)
     for ((name, url) in listOf(
-        "RainViewer" to "https://www.rainviewer.com",
+        "Buienradar" to "https://www.buienradar.nl",
         "OpenStreetMap" to "https://www.openstreetmap.org/copyright",
     )) {
         val start = credit.indexOf(name)

@@ -58,6 +58,43 @@ class RadarLoadingTest {
     }
 
     @Test
+    fun failedBaseTilesRecoverWithoutChangingTheViewportOrRestartingTheActivity() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val owner = Owner()
+        val cache = mutableMapOf("base-a" to "map-a")
+        val requested = mutableListOf<String>()
+        var online = false
+        val job = backgroundScope.launch {
+            refreshRadarWhileStarted(owner.lifecycle, 1_000) {
+                loadMapTiles(listOf("base-a", "base-b"), cache) { url ->
+                    requested.add(url)
+                    if (online) "map-b" else null
+                }
+            }
+        }
+        try {
+            owner.lifecycle.currentState = Lifecycle.State.STARTED
+            runCurrent()
+            assertEquals(listOf("base-b"), requested)
+            assertFalse("base-b" in cache)
+
+            online = true
+            advanceTimeBy(1_000)
+            runCurrent()
+            assertEquals(listOf("base-b", "base-b"), requested)
+            assertEquals("map-b", cache["base-b"])
+
+            advanceTimeBy(1_000)
+            runCurrent()
+            assertEquals(2, requested.size) // Successful tiles remain cached on later refreshes.
+        } finally {
+            job.cancel()
+            runCurrent()
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
     fun stoppingCancelsAnInFlightRefresh() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val owner = Owner()

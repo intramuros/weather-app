@@ -11,7 +11,10 @@ or **Pop art**; each has one finished picture per kind of weather, and
 **Browse all pictures** shows them all.
 
 Weather data comes from [Open-Meteo](https://open-meteo.com) (KNMI HARMONIE
-model) and rain radar from [Buienradar](https://www.buienradar.nl).
+model). [Buienradar](https://www.buienradar.nl) supplies the local rain prediction
+and the animated rain forecast over an OpenStreetMap base map. The forecast map
+covers the Netherlands and nearby areas, and shows the available future images
+up to three hours ahead.
 
 ## Layout
 

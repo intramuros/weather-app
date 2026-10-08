@@ -21,6 +21,18 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+    filter.excludeTestsMatching("*.BuienradarForecastLiveTest")
     // StyleTest checks the app's pictures, so a changed picture must re-run it.
     inputs.dir(rootProject.layout.projectDirectory.dir("app/src/main/assets/scenes")).withPropertyName("scenes")
+}
+
+tasks.register<Test>("forecastLiveTest") {
+    description = "Verify the live Buienradar forecast metadata and PNG contract."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform()
+    filter.includeTestsMatching("*.BuienradarForecastLiveTest")
+    outputs.upToDateWhen { false }
+    testLogging.showStandardStreams = true
 }
