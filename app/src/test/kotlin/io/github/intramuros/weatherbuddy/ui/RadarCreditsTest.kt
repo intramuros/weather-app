@@ -8,13 +8,13 @@ class RadarCreditsTest {
     @Test
     fun providerNamesHaveSeparateClickableAttributionLinks() {
         // Prefixes may be translated; the provider names stay the same.
-        val credit = "Neerslag: RainViewer · Kaart: © OpenStreetMap contributors"
+        val credit = "Neerslag: Buienradar · Kaart: © OpenStreetMap contributors"
         val text = radarCreditText(credit)
         assertEquals(credit, text.text)
         val links = text.getLinkAnnotations(0, text.length)
-        assertEquals(listOf("RainViewer", "OpenStreetMap"), links.map { text.text.substring(it.start, it.end) })
+        assertEquals(listOf("Buienradar", "OpenStreetMap"), links.map { text.text.substring(it.start, it.end) })
         assertEquals(
-            listOf("https://www.rainviewer.com", "https://www.openstreetmap.org/copyright"),
+            listOf("https://www.buienradar.nl", "https://www.openstreetmap.org/copyright"),
             links.map { (it.item as LinkAnnotation.Url).url },
         )
     }
