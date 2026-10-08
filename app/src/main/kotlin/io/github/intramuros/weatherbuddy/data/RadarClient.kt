@@ -15,19 +15,18 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
-/** Fetches the RainViewer radar index and the map tiles the radar view draws. */
+/** Fetches Buienradar forecast metadata and images, plus the OpenStreetMap base tiles. */
 object RadarClient {
     private const val TIMEOUT_MS = 10_000
-    // One process-wide budget for the index and all radar tiles, including retries and new viewports.
-    // 80 requests/minute leaves room below RainViewer's 100 requests/IP/minute limit.
-    private val rainViewerRequests = RequestPacer(intervalMs = 750)
+    // Pace metadata and full-country image requests so refreshes do not create download bursts.
+    private val forecastRequests = RequestPacer(intervalMs = 750)
 
     /**
-     * @throws IOException if RainViewer can't be reached.
-     * @throws WeatherParseException if it answers with something unexpected.
+     * @throws IOException if Buienradar can't be reached.
+     * @throws WeatherParseException if it answers without a usable forecast.
      */
     suspend fun index(): RadarIndex = withContext(Dispatchers.IO) {
-        Radar.parseIndex(get(Radar.INDEX_URL).toString(Charsets.UTF_8))
+        Radar.parseIndex(get(Radar.INDEX_URL).toString(Charsets.UTF_8), System.currentTimeMillis() / 1000)
     }
 
     suspend fun forecastIndex(): List<ForecastRadarFrame> = withContext(Dispatchers.IO) {
@@ -46,7 +45,7 @@ object RadarClient {
 
     private suspend fun get(url: String): ByteArray {
         val target = URL(url)
-        if (target.host != "tile.openstreetmap.org") rainViewerRequests.awaitTurn()
+        if (target.host != "tile.openstreetmap.org") forecastRequests.awaitTurn()
         val connection = target.openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = TIMEOUT_MS
