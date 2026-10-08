@@ -205,6 +205,7 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
             state.message?.let {
                 Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
             }
+            RainForecast(snapshot, settings?.location ?: Location.DEFAULT, Modifier.fillMaxWidth())
             snapshot?.let { Forecast(it.conditions.forecast, it.conditions.timeZone) }
 
             if (settings == null) return@Column

@@ -16,6 +16,10 @@ and the animated rain forecast over an OpenStreetMap base map. The forecast map
 covers the Netherlands and nearby areas, and shows the available future images
 up to three hours ahead.
 
+The rain histogram below the radar shows Buienradar's next two hours in
+five-minute bars (mm/h); tap a bar or move the slider to inspect its time and
+intensity. Expired or unavailable intervals are left blank.
+
 ## Layout
 
 - `core/`: pure Kotlin logic. It turns API responses into conditions, then
