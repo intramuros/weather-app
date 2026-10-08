@@ -110,7 +110,7 @@ internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
     // A forecast outage must not prevent the underlying map from loading.
     LaunchedEffect(lifecycle, window) {
         if (window.isEmpty()) return@LaunchedEffect
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        refreshRadarWhileStarted(lifecycle, REFRESH_MS) {
             val wanted = window.map { Radar.baseTileUrl(it) }
             tiles.keys.retainAll(wanted.toSet())
             val permits = Semaphore(PARALLEL_FETCHES)
