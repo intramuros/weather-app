@@ -37,6 +37,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.core.Radar
 import io.github.intramuros.weatherbuddy.core.RadarFrame
@@ -45,9 +48,6 @@ import io.github.intramuros.weatherbuddy.core.TileId
 import io.github.intramuros.weatherbuddy.core.WeatherParseException
 import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.RadarClient
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -74,11 +74,13 @@ private const val PARALLEL_FETCHES = 6
 internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
     val dark = isSystemInDarkTheme()
     val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     var size by remember { mutableStateOf(IntSize.Zero) }
     var index by remember { mutableStateOf<RadarIndex?>(null) }
+    var refresh by remember { mutableIntStateOf(0) }
     var failed by remember { mutableStateOf(false) }
     val tiles = remember { mutableStateMapOf<String, ImageBitmap>() }
-    // The frames whose tiles have all arrived (or failed), by time, and the one on show.
+    // Frames with at least one decoded radar tile in the current window, oldest first.
     val ready = remember { mutableStateListOf<RadarFrame>() }
     var shown by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(true) }
@@ -91,52 +93,61 @@ internal fun RadarMap(location: Location, modifier: Modifier = Modifier) {
         else Radar.tilesCovering(center, ZOOM, size.width / tilePx.toDouble(), size.height / tilePx.toDouble())
     }
 
-    LaunchedEffect(Unit) {
-        while (true) {
+    LaunchedEffect(lifecycle) {
+        refreshRadarWhileStarted(lifecycle, REFRESH_MS) {
             try {
                 index = RadarClient.index()
-                failed = false
+                // Even an unchanged index should retry previously missing tiles.
+                refresh++
             } catch (_: IOException) {
-                failed = index == null
+                failed = ready.isEmpty()
             } catch (_: WeatherParseException) {
-                failed = index == null
+                failed = ready.isEmpty()
             }
-            delay(REFRESH_MS)
         }
     }
 
-    LaunchedEffect(index, window, dark) {
+    LaunchedEffect(lifecycle, index, refresh, window, dark) {
         val current = index ?: return@LaunchedEffect
         if (window.isEmpty()) return@LaunchedEffect
-        val frames = current.frames.takeLast(FRAMES_SHOWN)
-        ready.removeAll { it !in frames }
-        val wanted = window.map { Radar.baseTileUrl(it, dark) } +
-            frames.flatMap { frame -> window.map { Radar.radarTileUrl(current, frame, it) } }
-        tiles.keys.retainAll(wanted.toSet())
-        val permits = Semaphore(PARALLEL_FETCHES)
-        suspend fun load(url: String) {
-            if (url in tiles) return
-            permits.withPermit { RadarClient.tile(url) }?.let { tiles[url] = it.asImageBitmap() }
-        }
-        coroutineScope {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            val frames = current.frames.takeLast(FRAMES_SHOWN)
+            val wanted = window.map { Radar.baseTileUrl(it, dark) } +
+                frames.flatMap { frame -> window.map { Radar.radarTileUrl(current, frame, it) } }
+            tiles.keys.retainAll(wanted.toSet())
+            ready.removeAll { frame ->
+                frame !in frames || window.none { Radar.radarTileUrl(current, frame, it) in tiles }
+            }
+            if (ready.isEmpty()) failed = false
+            val permits = Semaphore(PARALLEL_FETCHES)
+            suspend fun load(urls: List<String>): Boolean = loadMapTiles(urls, tiles) { url ->
+                permits.withPermit { RadarClient.tile(url) }?.asImageBitmap()
+            }
             // The map and the newest picture first, so something shows early; older frames fill in the loop.
-            window.map { async { load(Radar.baseTileUrl(it, dark)) } }.awaitAll()
+            load(window.map { Radar.baseTileUrl(it, dark) })
             frames.asReversed().forEach { frame ->
-                window.map { async { load(Radar.radarTileUrl(current, frame, it)) } }.awaitAll()
-                if (frame !in ready) {
-                    ready.add(frame)
-                    ready.sortBy { it.timeSeconds }
+                if (load(window.map { Radar.radarTileUrl(current, frame, it) })) {
+                    if (frame !in ready) {
+                        ready.add(frame)
+                        ready.sortBy { it.timeSeconds }
+                    }
+                    failed = false
+                } else {
+                    ready.remove(frame)
                 }
             }
+            failed = ready.isEmpty()
         }
     }
 
-    LaunchedEffect(ready.size, playing) {
-        while (playing && ready.size > 1) {
-            delay(if (shown >= ready.size - 1) HOLD_MS else STEP_MS)
-            shown = if (shown >= ready.size - 1) 0 else shown + 1
+    LaunchedEffect(lifecycle, ready.size, playing) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (playing && ready.size > 1) {
+                delay(if (shown >= ready.size - 1) HOLD_MS else STEP_MS)
+                shown = if (shown >= ready.size - 1) 0 else shown + 1
+            }
+            if (ready.isNotEmpty() && shown > ready.size - 1) shown = ready.size - 1
         }
-        if (ready.isNotEmpty() && shown > ready.size - 1) shown = ready.size - 1
     }
 
     val frame = ready.getOrNull(shown.coerceAtMost(ready.lastIndex.coerceAtLeast(0)))
