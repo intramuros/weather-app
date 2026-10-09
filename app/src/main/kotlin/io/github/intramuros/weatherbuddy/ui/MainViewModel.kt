@@ -162,7 +162,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     }
 
     private companion object {
-        const val STALE_AFTER_MS = 15 * 60 * 1000L
+        const val STALE_AFTER_MS = 10 * 60 * 1000L
         const val THUMB_WIDTH = 216
         const val THUMB_HEIGHT = 480
     }

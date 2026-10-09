@@ -29,7 +29,9 @@ during autoplay rather than replaced with unrelated radar history.
 - `core/`: pure Kotlin logic. It turns API responses into conditions, then
   into a scene, the picture that fits it and the particles moving over it.
 - `app/`: the Android app: settings screen, home-screen widget, wallpaper and
-  lock screen, and a background refresh every 30 minutes.
+  lock screen, and a background refresh that adapts to the rain: every 10–15 minutes while
+  rain is within two hours, every 30 minutes on a wet or unknown day, and every
+  60–90 minutes when it is dry.
 - `app/src/main/assets/scenes/<style>/`: the 30 finished pictures per style
   (pixel art also has the widget's icons for each).
 - `tools/preview/`: renders animated GIF previews of the live wallpaper.
