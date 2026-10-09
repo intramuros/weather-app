@@ -1,5 +1,6 @@
 package io.github.intramuros.weatherbuddy.core
 
+import java.net.URI
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
@@ -12,8 +13,10 @@ import kotlin.math.abs
 data class ForecastRadarFrame(val time: Instant, val url: String)
 
 object ForecastRadar {
+    const val FRAME_WIDTH = 529
+    const val FRAME_HEIGHT = 458
     const val INDEX_URL = "https://image.buienradar.nl/2.0/metadata/sprite/RadarMapRainWebmercatorNL" +
-        "?width=529&height=458&extension=png&renderBackground=false&renderText=false" +
+        "?width=$FRAME_WIDTH&height=$FRAME_HEIGHT&extension=png&renderBackground=false&renderText=false" +
         "&renderBranding=false&history=1&forecast=24&skip=0"
     const val NORTH = 54.8
     const val SOUTH = 49.5
@@ -31,7 +34,14 @@ object ForecastRadar {
                 } catch (_: java.time.DateTimeException) {
                     LocalDateTime.parse(frame.timestamp).toInstant(ZoneOffset.UTC)
                 }
-                if (!frame.url.startsWith("https://")) throw WeatherParseException("invalid forecast image URL")
+                val uri = try { URI(frame.url) } catch (e: java.net.URISyntaxException) {
+                    throw WeatherParseException("invalid forecast image URL", e)
+                }
+                val host = uri.host?.lowercase()
+                if (uri.scheme != "https" || uri.userInfo != null ||
+                    (host != "buienradar.nl" && host?.endsWith(".buienradar.nl") != true)) {
+                    throw WeatherParseException("invalid forecast image host")
+                }
                 ForecastRadarFrame(time, frame.url)
             }.distinctBy { it.time }.sortedBy { it.time }.also {
                 if (it.isEmpty()) throw WeatherParseException("no forecast radar images")

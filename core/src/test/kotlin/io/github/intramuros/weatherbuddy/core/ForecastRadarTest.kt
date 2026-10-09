@@ -18,6 +18,22 @@ class ForecastRadarTest {
         assertFailsWith<WeatherParseException> { ForecastRadar.parse("""{"times":[{"timestamp":"bad","url":"https://image.buienradar.nl/0.png"}]}""") }
     }
 
+    @Test fun rejectsForeignOrMalformedImageUrls() {
+        for (url in listOf(
+            "http://image.buienradar.nl/0.png",
+            "https://example.com/0.png",
+            "https://image.buienradar.nl.example.com/0.png",
+            "https://image.buienradar.nl@example.com/0.png",
+            "https://example.com@image.buienradar.nl/0.png",
+            "https:///image.buienradar.nl/0.png",
+            "https://image.buienradar.nl/invalid path.png",
+        )) {
+            assertFailsWith<WeatherParseException>(url) {
+                ForecastRadar.parse("""{"times":[{"timestamp":"2026-10-08T12:00:00Z","url":"$url"}]}""")
+            }
+        }
+    }
+
     @Test fun matchingNeverReusesAnOldMapForFutureRain() {
         assertEquals(frame(5), ForecastRadar.frameAt(listOf(frame(0), frame(5)), start.plusSeconds(300)))
         assertNull(ForecastRadar.frameAt(listOf(frame(0)), start.plusSeconds(300)))
