@@ -161,7 +161,9 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
         if (granted) vm.useMyLocation()
     }
     val settings = state.settings
-    val playback = rememberRainPlayback(state.snapshot, settings?.location ?: Location.DEFAULT)
+    val location = settings?.location ?: Location.DEFAULT
+    val playback = rememberRainPlayback(state.snapshot, location)
+    val mapTimeZone = state.snapshot?.takeIf { it.location == location }?.conditions?.timeZone
     LifecycleResumeEffect(Unit) {
         vm.checkLiveWallpaper()
         onPauseOrDispose {}
@@ -188,7 +190,7 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
                         .clip(RoundedCornerShape(24.dp)),
                     contentAlignment = Alignment.Center,
                 ) {
-                    RadarMap(settings?.location ?: Location.DEFAULT, playback, Modifier.fillMaxSize(), state.snapshot?.conditions?.timeZone)
+                    RadarMap(location, playback, Modifier.fillMaxSize(), mapTimeZone)
                     state.snapshot?.let {
                         HourlyStrip(
                             it.conditions.hourly,
