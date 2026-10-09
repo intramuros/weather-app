@@ -102,12 +102,19 @@ internal fun RadarMap(location: Location, playback: RainPlayback, modifier: Modi
             }
         }
     }
+    // Missing base tiles must recover even when forecast metadata never changes.
+    LaunchedEffect(lifecycle, window) {
+        if (window.isEmpty()) return@LaunchedEffect
+        refreshRadarWhileStarted(lifecycle, REFRESH_MS) {
+            val urls = window.map { Radar.baseTileUrl(it) }
+            val permits = Semaphore(4)
+            loadMapTiles(urls, tiles) { url -> permits.withPermit { RadarClient.tile(url) }?.asImageBitmap() }
+        }
+    }
     LaunchedEffect(lifecycle, frames, refresh, window) {
         if (window.isEmpty()) return@LaunchedEffect
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             val urls = window.map { Radar.baseTileUrl(it) }
-            val permits = Semaphore(4)
-            loadMapTiles(urls, tiles) { url -> permits.withPermit { RadarClient.tile(url) }?.asImageBitmap() }
             // Forecast images load in time order, letting synchronized playback start with two frames.
             loaded = false
             frames.forEach { frame ->
