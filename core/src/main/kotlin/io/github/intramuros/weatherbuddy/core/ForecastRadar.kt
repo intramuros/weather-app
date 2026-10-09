@@ -58,7 +58,7 @@ object ForecastRadar {
         val rainTimes = intervals.map { it.start }.distinct().sorted()
         val shared = rainTimes.filter { frameAt(frames, it) != null }
         return when {
-            shared.isNotEmpty() -> shared
+            shared.size > 1 -> shared
             rainTimes.isNotEmpty() -> rainTimes
             else -> frames.map { it.time }.distinct().sorted()
         }

@@ -43,6 +43,8 @@ class ForecastRadarTest {
     @Test fun playbackFallsBackToEitherAvailableSource() {
         assertEquals(listOf(start, start.plusSeconds(300)), ForecastRadar.playbackTimes(emptyList(), listOf(frame(0), frame(5))))
         assertEquals(listOf(start, start.plusSeconds(300)), ForecastRadar.playbackTimes(listOf(interval(0), interval(5)), emptyList()))
+        // A single loaded image must not freeze an otherwise playable histogram.
+        assertEquals(listOf(start, start.plusSeconds(300)), ForecastRadar.playbackTimes(listOf(interval(0), interval(5)), listOf(frame(0))))
         // Both feeds can exist without overlapping timestamps after a partial refresh.
         assertEquals(listOf(start, start.plusSeconds(300)), ForecastRadar.playbackTimes(listOf(interval(0), interval(5)), listOf(frame(20))))
         assertEquals(emptyList(), ForecastRadar.playbackTimes(emptyList(), emptyList()))

@@ -40,6 +40,24 @@ class RainPlaybackTest {
         assertEquals(1, ForecastRadar.intervalAt(state.intervals, state.time!!))
     }
 
+    @Test fun oneLoadedMapKeepsHistogramPlayableUntilSharedPlaybackIsReady() {
+        val state = RainPlayback()
+        val rain = listOf(rain(0), rain(5), rain(10))
+        state.frames = listOf(frame(0))
+        state.updateForecast(rain, now)
+        assertTrue(state.canPlay)
+        state.time = ForecastRadar.nextTime(state.times, state.time)
+        assertEquals(1, ForecastRadar.intervalAt(state.intervals, state.time!!))
+        assertNull(ForecastRadar.frameAt(state.frames, state.time!!))
+
+        state.frames = listOf(frame(0), frame(10))
+        state.updateForecast(rain, now)
+        assertTrue(state.canPlay)
+        state.time = ForecastRadar.nextTime(state.times, state.time)
+        assertEquals(2, ForecastRadar.intervalAt(state.intervals, state.time!!))
+        assertEquals(frame(10), ForecastRadar.frameAt(state.frames, state.time!!))
+    }
+
     @Test fun manualSelectionStaysPausedWhenMapsArriveAndResumeSkipsMissingImages() {
         val state = RainPlayback()
         val rain = listOf(rain(0), rain(5), rain(10))
