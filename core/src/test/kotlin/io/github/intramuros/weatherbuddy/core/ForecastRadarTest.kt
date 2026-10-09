@@ -39,4 +39,12 @@ class ForecastRadarTest {
         assertEquals(1, ForecastRadar.intervalAt(intervals, start.plusSeconds(600)))
         assertNull(ForecastRadar.intervalAt(intervals, start.minusSeconds(1)))
     }
+
+    @Test fun playbackFallsBackToEitherAvailableSource() {
+        assertEquals(listOf(start, start.plusSeconds(300)), ForecastRadar.playbackTimes(emptyList(), listOf(frame(0), frame(5))))
+        assertEquals(listOf(start, start.plusSeconds(300)), ForecastRadar.playbackTimes(listOf(interval(0), interval(5)), emptyList()))
+        // Both feeds can exist without overlapping timestamps after a partial refresh.
+        assertEquals(listOf(start, start.plusSeconds(300)), ForecastRadar.playbackTimes(listOf(interval(0), interval(5)), listOf(frame(20))))
+        assertEquals(emptyList(), ForecastRadar.playbackTimes(emptyList(), emptyList()))
+    }
 }

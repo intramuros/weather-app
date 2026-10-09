@@ -75,7 +75,7 @@ internal fun RainForecast(snapshot: WeatherSnapshot?, playback: RainPlayback, mo
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(stringResource(R.string.rain_forecast), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            TextButton(onClick = playback::toggle, enabled = intervals.size > 1) {
+            TextButton(onClick = playback::toggle, enabled = playback.canPlay) {
                 Text(stringResource(if (playback.playing) R.string.rain_pause else R.string.rain_play))
             }
         }

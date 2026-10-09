@@ -53,9 +53,16 @@ object ForecastRadar {
     fun intervalAt(intervals: List<RainInterval>, time: Instant): Int? =
         intervals.indexOfFirst { time >= it.start && time < it.end }.takeIf { it >= 0 }
 
-    /** Forecast points drive the shared cursor; loaded maps determine which steps can autoplay together. */
-    fun playbackTimes(intervals: List<RainInterval>, frames: List<ForecastRadarFrame>): List<Instant> =
-        intervals.map { it.start }.filter { frameAt(frames, it) != null }
+    /** Prefer synchronized steps; let either source keep playing when the other is unavailable. */
+    fun playbackTimes(intervals: List<RainInterval>, frames: List<ForecastRadarFrame>): List<Instant> {
+        val rainTimes = intervals.map { it.start }.distinct().sorted()
+        val shared = rainTimes.filter { frameAt(frames, it) != null }
+        return when {
+            shared.isNotEmpty() -> shared
+            rainTimes.isNotEmpty() -> rainTimes
+            else -> frames.map { it.time }.distinct().sorted()
+        }
+    }
 
     fun nextTime(times: List<Instant>, selected: Instant?): Instant? {
         if (times.isEmpty()) return null

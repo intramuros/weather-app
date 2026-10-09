@@ -148,6 +148,7 @@ internal fun RadarMap(location: Location, playback: RainPlayback, modifier: Modi
             frame != null -> stringResource(R.string.radar_forecast, clock.orEmpty())
             failed -> stringResource(R.string.radar_unavailable)
             clock != null && loaded -> stringResource(R.string.radar_time_unavailable, clock)
+            loaded && time == null -> stringResource(R.string.radar_unavailable)
             else -> stringResource(R.string.radar_loading)
         }
         val shadow = Shadow(Color.Black.copy(alpha = 0.8f), Offset(0f, 1f), 3f)

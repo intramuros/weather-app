@@ -25,6 +25,20 @@ internal class RainPlayback {
     var playing by mutableStateOf(true)
     var frames by mutableStateOf<List<ForecastRadarFrame>>(emptyList())
     var intervals by mutableStateOf<List<RainInterval>>(emptyList())
+        private set
+    var times by mutableStateOf<List<Instant>>(emptyList())
+        private set
+    val canPlay: Boolean get() = times.size > 1
+
+    fun updateForecast(intervals: List<RainInterval>, now: Instant) {
+        this.intervals = intervals
+        val currentFrames = frames.filter { it.time.plusSeconds(300) > now && it.time < now.plusSeconds(7200) }
+        times = ForecastRadar.playbackTimes(intervals, currentFrames)
+        val selected = time
+        // Keep a manually inspected histogram bar, even when its map is missing.
+        val valid = selected != null && (selected in times || ForecastRadar.intervalAt(intervals, selected) != null)
+        if (!valid) time = times.firstOrNull()
+    }
 
     fun select(time: Instant) {
         playing = false
@@ -43,18 +57,13 @@ internal fun rememberRainPlayback(snapshot: WeatherSnapshot?, location: Location
             snapshot.conditions.rainNowcast, Instant.ofEpochMilli(snapshot.fetchedAtMillis), now,
         )
     }
-    LaunchedEffect(state, intervals) {
-        state.intervals = intervals
-        if (state.time == null || state.time?.let { ForecastRadar.intervalAt(intervals, it) } == null) {
-            state.time = intervals.firstOrNull()?.start
-        }
-    }
+    LaunchedEffect(state, intervals, state.frames, now) { state.updateForecast(intervals, now) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val times = ForecastRadar.playbackTimes(intervals, state.frames)
+    val times = state.times
     LaunchedEffect(lifecycle, state, times, state.playing) {
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             while (state.playing && times.size > 1) {
-                if (state.time !in times) state.time = times.first()
+                if (state.time !in times) state.time = ForecastRadar.nextTime(times, state.time)
                 delay(if (state.time == times.last()) 2000 else 750)
                 state.time = ForecastRadar.nextTime(times, state.time)
             }
