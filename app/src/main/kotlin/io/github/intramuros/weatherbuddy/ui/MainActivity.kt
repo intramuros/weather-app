@@ -35,9 +35,10 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -151,6 +152,7 @@ internal fun WeatherBuddyTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = colors, content = content)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -166,125 +168,131 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
     }
 
     Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .padding(padding)
-                .verticalScroll(scroll)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        // Pulling down refreshes; its indicator also shows the refreshes started any other way.
+        PullToRefreshBox(
+            isRefreshing = state.busy,
+            onRefresh = vm::refresh,
+            modifier = Modifier.padding(padding),
         ) {
-            Box(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(420.dp)
-                    .clip(RoundedCornerShape(24.dp)),
-                contentAlignment = Alignment.Center,
+                    .fillMaxSize()
+                    .verticalScroll(scroll)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                RadarMap(settings?.location ?: Location.DEFAULT, playback, Modifier.fillMaxSize(), state.snapshot?.conditions?.timeZone)
-                state.snapshot?.let {
-                    HourlyStrip(
-                        it.conditions.hourly,
-                        it.conditions.timeZone,
-                        Modifier.align(Alignment.TopCenter),
-                    )
-                }
-                if (state.busy) CircularProgressIndicator()
-            }
-
-            val snapshot = state.snapshot
-            if (snapshot != null) {
-                Text(
-                    stringResource(
-                        R.string.status,
-                        DateFormat.getTimeFormat(context).format(Date(snapshot.fetchedAtMillis)),
-                        snapshot.conditions.temperatureC,
-                        snapshot.conditions.apparentTemperatureC,
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-            state.message?.let {
-                Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-            }
-            RainForecast(snapshot, playback, Modifier.fillMaxWidth())
-            snapshot?.let { Forecast(it.conditions.forecast, it.conditions.timeZone) }
-
-            if (settings == null) return@Column
-
-            if (state.styles.size > 1) {
-                Text(stringResource(R.string.style), style = MaterialTheme.typography.titleMedium)
-                // More styles than fit across a phone, so the row scrolls, starting at the chosen one.
-                val styleScroll = rememberScrollState()
-                val cardStep = with(LocalDensity.current) { (STYLE_CARD_WIDTH + STYLE_CARD_GAP).roundToPx() }
-                LaunchedEffect(Unit) { styleScroll.scrollTo(state.styles.indexOf(settings.style).coerceAtLeast(0) * cardStep) }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(STYLE_CARD_GAP),
-                    modifier = Modifier.horizontalScroll(styleScroll),
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(420.dp)
+                        .clip(RoundedCornerShape(24.dp)),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    state.styles.forEach { style ->
-                        StyleCard(
-                            style = style,
-                            thumbnail = state.thumbnails[style],
-                            selected = style == settings.style,
-                            onClick = { vm.selectStyle(style) },
-                            modifier = Modifier.width(STYLE_CARD_WIDTH),
+                    RadarMap(settings?.location ?: Location.DEFAULT, playback, Modifier.fillMaxSize(), state.snapshot?.conditions?.timeZone)
+                    state.snapshot?.let {
+                        HourlyStrip(
+                            it.conditions.hourly,
+                            it.conditions.timeZone,
+                            Modifier.align(Alignment.TopCenter),
                         )
                     }
                 }
-            }
-            OutlinedButton(
-                onClick = { context.startActivity(GalleryActivity.intent(context, settings.style)) },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.browse_pictures)) }
 
-            Text(stringResource(R.string.show_on), style = MaterialTheme.typography.titleMedium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.live_wallpaper))
-                    Text(stringResource(R.string.live_wallpaper_hint), style = MaterialTheme.typography.bodySmall)
+                val snapshot = state.snapshot
+                if (snapshot != null) {
+                    Text(
+                        stringResource(
+                            R.string.status,
+                            DateFormat.getTimeFormat(context).format(Date(snapshot.fetchedAtMillis)),
+                            snapshot.conditions.temperatureC,
+                            snapshot.conditions.apparentTemperatureC,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
-                Spacer(Modifier.width(8.dp))
-                if (state.liveWallpaperActive) {
-                    Text(stringResource(R.string.live_wallpaper_active), color = MaterialTheme.colorScheme.primary)
-                } else {
-                    Button(onClick = { setLiveWallpaper(context) }) { Text(stringResource(R.string.set_live_wallpaper)) }
+                state.message?.let {
+                    Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
                 }
-            }
-            SwitchRow(
-                label = stringResource(R.string.home_screen_wallpaper),
-                checked = settings.wallpaperHome && !state.liveWallpaperActive,
-                onChange = vm::setWallpaperHome,
-                enabled = !state.liveWallpaperActive,
-                supporting = if (state.liveWallpaperActive) stringResource(R.string.home_screen_live_active) else null,
-            )
-            SwitchRow(stringResource(R.string.lock_screen), settings.wallpaperLock, vm::setWallpaperLock)
-            Text(stringResource(R.string.widget_hint), style = MaterialTheme.typography.bodySmall)
+                RainForecast(snapshot, playback, Modifier.fillMaxWidth())
+                snapshot?.let { Forecast(it.conditions.forecast, it.conditions.timeZone) }
 
-            Text(stringResource(R.string.location), style = MaterialTheme.typography.titleMedium)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = settings.location
-                        ?.let { settings.placeName ?: stringResource(R.string.location_coordinates, it.latitude, it.longitude) }
-                        ?: stringResource(R.string.location_default),
-                    modifier = Modifier.weight(1f),
-                )
-                OutlinedButton(
-                    onClick = {
-                        if (LocationProvider.hasPermission(context)) {
-                            vm.useMyLocation()
-                        } else {
-                            requestLocation.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                if (settings == null) return@Column
+
+                if (state.styles.size > 1) {
+                    Text(stringResource(R.string.style), style = MaterialTheme.typography.titleMedium)
+                    // More styles than fit across a phone, so the row scrolls, starting at the chosen one.
+                    val styleScroll = rememberScrollState()
+                    val cardStep = with(LocalDensity.current) { (STYLE_CARD_WIDTH + STYLE_CARD_GAP).roundToPx() }
+                    LaunchedEffect(Unit) { styleScroll.scrollTo(state.styles.indexOf(settings.style).coerceAtLeast(0) * cardStep) }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(STYLE_CARD_GAP),
+                        modifier = Modifier.horizontalScroll(styleScroll),
+                    ) {
+                        state.styles.forEach { style ->
+                            StyleCard(
+                                style = style,
+                                thumbnail = state.thumbnails[style],
+                                selected = style == settings.style,
+                                onClick = { vm.selectStyle(style) },
+                                modifier = Modifier.width(STYLE_CARD_WIDTH),
+                            )
                         }
-                    },
-                    enabled = !state.busy,
-                ) { Text(stringResource(R.string.use_my_location)) }
-            }
+                    }
+                }
+                OutlinedButton(
+                    onClick = { context.startActivity(GalleryActivity.intent(context, settings.style)) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.browse_pictures)) }
 
-            Button(onClick = { vm.refresh() }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.refresh))
-            }
+                Text(stringResource(R.string.show_on), style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.live_wallpaper))
+                        Text(stringResource(R.string.live_wallpaper_hint), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    if (state.liveWallpaperActive) {
+                        Text(stringResource(R.string.live_wallpaper_active), color = MaterialTheme.colorScheme.primary)
+                    } else {
+                        Button(onClick = { setLiveWallpaper(context) }) { Text(stringResource(R.string.set_live_wallpaper)) }
+                    }
+                }
+                SwitchRow(
+                    label = stringResource(R.string.home_screen_wallpaper),
+                    checked = settings.wallpaperHome && !state.liveWallpaperActive,
+                    onChange = vm::setWallpaperHome,
+                    enabled = !state.liveWallpaperActive,
+                    supporting = if (state.liveWallpaperActive) stringResource(R.string.home_screen_live_active) else null,
+                )
+                SwitchRow(stringResource(R.string.lock_screen), settings.wallpaperLock, vm::setWallpaperLock)
+                Text(stringResource(R.string.widget_hint), style = MaterialTheme.typography.bodySmall)
 
-            Credits()
+                Text(stringResource(R.string.location), style = MaterialTheme.typography.titleMedium)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = settings.location
+                            ?.let { settings.placeName ?: stringResource(R.string.location_coordinates, it.latitude, it.longitude) }
+                            ?: stringResource(R.string.location_default),
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            if (LocationProvider.hasPermission(context)) {
+                                vm.useMyLocation()
+                            } else {
+                                requestLocation.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                            }
+                        },
+                        enabled = !state.busy,
+                    ) { Text(stringResource(R.string.use_my_location)) }
+                }
+
+                Button(onClick = { vm.refresh() }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.refresh))
+                }
+
+                Credits()
+            }
         }
     }
 }
