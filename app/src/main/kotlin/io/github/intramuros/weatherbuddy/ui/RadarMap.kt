@@ -57,7 +57,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
-private const val ZOOM = 6
+private const val ZOOM = 7
 private const val TILE_DP = 200
 private const val REFRESH_MS = 5 * 60 * 1000L
 
