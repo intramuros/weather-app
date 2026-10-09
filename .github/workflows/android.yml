@@ -30,9 +30,8 @@ jobs:
         run: ./gradlew :core:forecastLiveTest
 
       - name: Test, lint and build
-        env:
-          VERSION_CODE: ${{ github.run_number }}
-        run: ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+        # Keep merged releases newer than the separately published histogram APKs.
+        run: VERSION_CODE=$((67 + ${{ github.run_number }})) ./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 
       - name: Rename APK
         run: cp app/build/outputs/apk/debug/app-debug.apk weather-buddy.apk

@@ -2,6 +2,7 @@ package io.github.intramuros.weatherbuddy.core
 
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.Instant
 import javax.imageio.ImageIO
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -12,16 +13,17 @@ import kotlin.test.assertTrue
 class BuienradarForecastLiveTest {
     @Test
     fun providerReturnsFutureTimestampsAndADecodableGeographicOverlay() {
-        val metadata = get(Radar.INDEX_URL).toString(Charsets.UTF_8)
+        val metadata = get(ForecastRadar.INDEX_URL).toString(Charsets.UTF_8)
         println("Provider metadata sample: ${metadata.take(1500)}")
-        val index = Radar.parseIndex(metadata, System.currentTimeMillis() / 1000)
-        val future = index.frames.filter { it.isForecast }
-        assertTrue(future.isNotEmpty())
+        val frames = ForecastRadar.parse(metadata)
+        val now = Instant.now()
+        val future = frames.filter { it.time > now }
+        assertTrue(future.size > 1, "Production feed must provide multiple future playback steps")
         val image = ImageIO.read(get(future.first().url).inputStream())
         assertNotNull(image)
-        assertEquals(Radar.FRAME_WIDTH, image.width)
-        assertEquals(Radar.FRAME_HEIGHT, image.height)
-        println("Buienradar returned ${index.frames.size} usable frames; last forecast: ${java.time.Instant.ofEpochSecond(future.last().timeSeconds)}")
+        assertEquals(ForecastRadar.FRAME_WIDTH, image.width)
+        assertEquals(ForecastRadar.FRAME_HEIGHT, image.height)
+        println("Buienradar returned ${frames.size} usable frames; last forecast: ${future.last().time}")
     }
 
     private fun get(url: String): ByteArray {

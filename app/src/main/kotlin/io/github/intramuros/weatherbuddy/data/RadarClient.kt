@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory
 import android.net.http.HttpResponseCache
 import android.util.Log
 import io.github.intramuros.weatherbuddy.core.Radar
+import io.github.intramuros.weatherbuddy.core.ForecastRadar
+import io.github.intramuros.weatherbuddy.core.ForecastRadarFrame
 import io.github.intramuros.weatherbuddy.core.RadarIndex
 import io.github.intramuros.weatherbuddy.core.WeatherParseException
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +27,10 @@ object RadarClient {
      */
     suspend fun index(): RadarIndex = withContext(Dispatchers.IO) {
         Radar.parseIndex(get(Radar.INDEX_URL).toString(Charsets.UTF_8), System.currentTimeMillis() / 1000)
+    }
+
+    suspend fun forecastIndex(): List<ForecastRadarFrame> = withContext(Dispatchers.IO) {
+        ForecastRadar.parse(get(ForecastRadar.INDEX_URL).toString(Charsets.UTF_8))
     }
 
     /** The tile at [url], or `null` if it can't be fetched or decoded; a missing tile just leaves a gap. */
