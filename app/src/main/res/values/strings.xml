@@ -61,7 +61,9 @@
     <string name="status">Updated %1$s · %2$.0f°C, feels like %3$.0f°C</string>
     <string name="coming_days">Coming days</string>
     <string name="rain_forecast">Rain · next 2 hours</string>
-    <string name="rain_unit">mm/h</string>
+    <string name="rain_low">Low</string>
+    <string name="rain_medium">Med</string>
+    <string name="rain_high">High</string>
     <string name="rain_interval">%1$s–%2$s · %3$.2f mm/h</string>
     <string name="rain_inspect">Inspect rain forecast by time</string>
     <string name="rain_unavailable">Rain forecast unavailable. Tap Refresh to try again.</string>

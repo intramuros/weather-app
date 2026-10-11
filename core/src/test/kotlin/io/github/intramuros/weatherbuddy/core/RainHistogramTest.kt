@@ -47,15 +47,22 @@ class RainHistogramTest {
     }
 
     @Test
-    fun unavailableDataIsDifferentFromDryDataAndScaleFitsHeavyRain() {
+    fun unavailableDataIsDifferentFromDryDataAndInvalidStepsAreDropped() {
         val fetched = Instant.parse("2026-10-08T12:00:00Z")
         assertTrue(RainHistogram.intervals(emptyList(), fetched, fetched).isEmpty())
         val dry = RainHistogram.intervals(listOf(RainStep(14, 0, 0.0)), fetched, fetched)
         assertEquals(1, dry.size)
-        assertEquals(1.0, RainHistogram.axisMaximum(dry))
-        assertEquals(1.0, RainHistogram.axisMaximum(emptyList()))
-        val heavy = RainHistogram.intervals(listOf(RainStep(14, 0, 37.0)), fetched, fetched)
-        assertEquals(40.0, RainHistogram.axisMaximum(heavy))
         assertTrue(RainHistogram.intervals(listOf(RainStep(14, 0, Double.NaN), RainStep(14, 5, -1.0)), fetched, fetched).isEmpty())
+    }
+
+    @Test
+    fun intensityBandsShareTheAxisEquallyAndHeavyRainIsCapped() {
+        assertEquals(0.0, RainHistogram.height(0.0))
+        assertEquals(1.0 / 3, RainHistogram.height(2.5), 1e-9)
+        assertEquals(2.0 / 3, RainHistogram.height(10.0), 1e-9)
+        assertEquals(1.0, RainHistogram.height(50.0))
+        assertEquals(1.0, RainHistogram.height(200.0))
+        assertTrue(RainHistogram.height(0.1) > 0.02)
+        assertTrue(RainHistogram.height(1.0) < RainHistogram.height(2.0))
     }
 }
