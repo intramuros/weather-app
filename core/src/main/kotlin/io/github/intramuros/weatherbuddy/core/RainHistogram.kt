@@ -5,10 +5,7 @@ import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 import kotlin.math.abs
-import kotlin.math.ceil
-import kotlin.math.floor
-import kotlin.math.log10
-import kotlin.math.pow
+import kotlin.math.ln1p
 
 /** A five-minute rain interval, anchored to the snapshot rather than today's date. */
 data class RainInterval(val start: Instant, val mmPerHour: Double) {
@@ -47,11 +44,21 @@ object RainHistogram {
         }
     }
 
-    /** Linear scale with four readable grid divisions; dry forecasts retain a 1 mm/h axis. */
-    fun axisMaximum(intervals: List<RainInterval>): Double {
-        val peak = (intervals.maxOfOrNull { it.mmPerHour } ?: 0.0).coerceAtLeast(1.0)
-        val magnitude = 10.0.pow(floor(log10(peak)))
-        val step = magnitude / 2.0
-        return ceil(peak / step) * step
+    /** Upper bounds of light and moderate rain, and the heaviest rain the axis shows. */
+    val levels = listOf(2.5, 10.0, 50.0)
+
+    /**
+     * Maps an intensity onto a fixed 0..1 axis split into equal low, medium and high bands.
+     * Within a band the scale is logarithmic, so drizzle stays visible beside a downpour.
+     */
+    fun height(mmPerHour: Double): Double {
+        val value = ln1p(mmPerHour.coerceIn(0.0, levels.last()))
+        var lower = 0.0
+        levels.forEachIndexed { band, upper ->
+            val top = ln1p(upper)
+            if (value <= top) return (band + (value - lower) / (top - lower)) / levels.size
+            lower = top
+        }
+        return 1.0
     }
 }

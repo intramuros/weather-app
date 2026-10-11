@@ -4,6 +4,7 @@ import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,10 +19,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
@@ -43,7 +46,6 @@ import io.github.intramuros.weatherbuddy.core.ForecastRadar
 import io.github.intramuros.weatherbuddy.core.RainHistogram
 import io.github.intramuros.weatherbuddy.core.RainInterval
 import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
-import java.text.NumberFormat
 import java.time.Duration
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -63,7 +65,6 @@ internal fun RainForecast(snapshot: WeatherSnapshot?, playback: RainPlayback, mo
     val formatter = remember(locale, use24Hours, zone) {
         DateTimeFormatter.ofPattern(if (use24Hours) "HH:mm" else "h:mm a", locale).withZone(zone)
     }
-    val numbers = remember(locale) { NumberFormat.getNumberInstance(locale).apply { maximumFractionDigits = 2 } }
     val selected = playback.time?.let { ForecastRadar.intervalAt(intervals, it) } ?: -1
     val point = intervals.getOrNull(selected)
     val selectedLabel = point?.let {
@@ -73,7 +74,7 @@ internal fun RainForecast(snapshot: WeatherSnapshot?, playback: RainPlayback, mo
     val source = stringResource(R.string.rain_source)
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.rain_forecast), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             TextButton(onClick = playback::toggle, enabled = playback.canPlay) {
                 Text(stringResource(if (playback.playing) R.string.rain_pause else R.string.rain_play))
@@ -92,7 +93,7 @@ internal fun RainForecast(snapshot: WeatherSnapshot?, playback: RainPlayback, mo
                     }
                     Text(summary, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     Text(selectedLabel.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = blue)
-                    RainPlot(intervals, windowStart, selected, numbers, formatter, blue) { playback.select(intervals[it].start) }
+                    RainPlot(intervals, windowStart, selected, formatter, blue) { playback.select(intervals[it].start) }
                     if (intervals.size > 1) {
                         val description = stringResource(R.string.rain_inspect)
                         Slider(
@@ -128,22 +129,19 @@ private fun RainPlot(
     intervals: List<RainInterval>,
     windowStart: Instant,
     selected: Int,
-    numbers: NumberFormat,
     formatter: DateTimeFormatter,
     blue: Color,
     onSelect: (Int) -> Unit,
 ) {
-    val maximum = remember(intervals) { RainHistogram.axisMaximum(intervals) }
     val grid = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
     Column {
-        Text(stringResource(R.string.rain_unit), style = MaterialTheme.typography.labelMedium)
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-            Column(
-                Modifier.width(46.dp).height(160.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
-            ) {
-                (4 downTo 0).forEach { tick ->
-                    Text(numbers.format(maximum * tick / 4), style = MaterialTheme.typography.labelMedium)
+        Row(Modifier.fillMaxWidth()) {
+            // Labels name the bands between grid lines, sharing the canvas inset.
+            Column(Modifier.width(46.dp).height(160.dp).padding(vertical = 8.dp)) {
+                listOf(R.string.rain_high, R.string.rain_medium, R.string.rain_low).forEach { label ->
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        Text(stringResource(label), style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             }
             Canvas(
@@ -156,31 +154,34 @@ private fun RainPlot(
                     }
                 },
             ) {
-                // Grid and labels share an inset so the top and bottom labels remain inside the plot.
                 val inset = 8.dp.toPx()
                 val baseline = size.height - inset
                 val plotHeight = size.height - 2 * inset
-                repeat(5) { tick ->
-                    val y = baseline - plotHeight * tick / 4
+                repeat(4) { tick ->
+                    val y = baseline - plotHeight * tick / 3
                     drawLine(grid, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
                 }
-                intervals.forEachIndexed { index, interval ->
-                    val left = (Duration.between(windowStart, interval.start).seconds / 7200f * size.width).coerceAtLeast(0f)
-                    val right = (Duration.between(windowStart, interval.end).seconds / 7200f * size.width).coerceAtMost(size.width)
-                    if (right <= left) return@forEachIndexed
-                    val height = (interval.mmPerHour / maximum * plotHeight).toFloat()
-                    val color = if (index == selected) blue else blue.copy(alpha = 0.65f)
-                    // A short baseline mark identifies dry data; missing intervals stay blank.
-                    drawRect(
-                        color,
-                        Offset(left + 1.dp.toPx(), baseline - height.coerceAtLeast(2.dp.toPx())),
-                        Size((right - left - 2.dp.toPx()).coerceAtLeast(1f), height.coerceAtLeast(2.dp.toPx())),
-                    )
-                    if (index == selected) {
-                        val middle = (left + right) / 2
-                        drawLine(blue, Offset(middle, inset), Offset(middle, baseline), 1.dp.toPx())
-                        drawCircle(blue, 3.dp.toPx(), Offset(middle, baseline - height))
+                fun x(time: Instant) = (Duration.between(windowStart, time).seconds / 7200f * size.width).coerceIn(0f, size.width)
+                fun y(interval: RainInterval) = baseline - (RainHistogram.height(interval.mmPerHour) * plotHeight).toFloat()
+                // Missing intervals break the curve, so gaps stay distinct from dry data.
+                contiguousRuns(intervals).forEach { run ->
+                    val points = listOf(Offset(x(run.first().start), y(run.first()))) +
+                        run.map { Offset(x(it.start.plusSeconds(150)), y(it)) } +
+                        Offset(x(run.last().end), y(run.last()))
+                    val curve = smoothPath(points)
+                    val area = Path().apply {
+                        addPath(curve)
+                        lineTo(points.last().x, baseline)
+                        lineTo(points.first().x, baseline)
+                        close()
                     }
+                    drawPath(area, blue.copy(alpha = 0.35f))
+                    drawPath(curve, blue, style = Stroke(2.dp.toPx()))
+                }
+                intervals.getOrNull(selected)?.let { interval ->
+                    val middle = x(interval.start.plusSeconds(150))
+                    drawLine(blue, Offset(middle, inset), Offset(middle, baseline), 1.dp.toPx())
+                    drawCircle(blue, 4.dp.toPx(), Offset(middle, y(interval)))
                 }
             }
         }
@@ -195,3 +196,32 @@ private fun RainPlot(
     }
 }
 
+private fun contiguousRuns(intervals: List<RainInterval>): List<List<RainInterval>> =
+    intervals.fold(mutableListOf<MutableList<RainInterval>>()) { runs, interval ->
+        if (runs.lastOrNull()?.last()?.end == interval.start) runs.last() += interval else runs += mutableListOf(interval)
+        runs
+    }
+
+/** A monotone cubic through the points, so the curve never dips below dry or overshoots a peak. */
+private fun smoothPath(points: List<Offset>): Path {
+    val slopes = points.zipWithNext { a, b -> if (b.x > a.x) (b.y - a.y) / (b.x - a.x) else 0f }
+    val tangents = points.indices.map { i ->
+        when (i) {
+            0 -> slopes.firstOrNull() ?: 0f
+            points.lastIndex -> slopes.last()
+            else -> if (slopes[i - 1] * slopes[i] <= 0f) 0f else {
+                // Fritsch–Carlson harmonic mean keeps each segment monotone.
+                2f / (1f / slopes[i - 1] + 1f / slopes[i])
+            }
+        }
+    }
+    return Path().apply {
+        moveTo(points[0].x, points[0].y)
+        for (i in 1..points.lastIndex) {
+            val a = points[i - 1]
+            val b = points[i]
+            val third = (b.x - a.x) / 3
+            cubicTo(a.x + third, a.y + tangents[i - 1] * third, b.x - third, b.y - tangents[i] * third, b.x, b.y)
+        }
+    }
+}
