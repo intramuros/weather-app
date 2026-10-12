@@ -19,16 +19,26 @@ object OpenAiClient {
     private const val CONNECT_TIMEOUT_MS = 15_000
     private const val CHAT_TIMEOUT_MS = 90_000
 
-    /** A carefully drawn picture can take a few minutes. */
-    private const val IMAGE_TIMEOUT_MS = 5 * 60_000
+    /** A carefully drawn picture can take a few minutes; StyleWorker counts on it taking at most this. */
+    const val IMAGE_TIMEOUT_MS = 5 * 60_000
 
-    /** Whether OpenAI accepts [key]; throws if it couldn't be asked. */
+    private const val HTTP_FORBIDDEN = 403
+
+    /**
+     * Whether OpenAI accepts [key]; throws if it couldn't be asked. A key that may not list
+     * the models still counts: a key restricted to the chat and image models is refused
+     * that (403), but works here.
+     */
     suspend fun accepts(key: String): Boolean =
         try {
             request(key, StyleDesigner.KEY_CHECK_URL, CHAT_TIMEOUT_MS, body = null)
             true
         } catch (e: OpenAiException) {
-            if (e.problem == OpenAiException.Problem.KEY) false else throw e
+            when {
+                e.problem == OpenAiException.Problem.KEY -> false
+                e.status == HTTP_FORBIDDEN -> true
+                else -> throw e
+            }
         }
 
     /** The designer's answer to the last message of [conversation]. */

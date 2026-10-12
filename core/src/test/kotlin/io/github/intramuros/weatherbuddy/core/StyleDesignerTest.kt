@@ -174,6 +174,7 @@ class StyleDesignerTest {
         val forbidden = StyleDesigner.error(403, error(null, "Your organization must be verified."), null)
         assertEquals(OpenAiException.Problem.OTHER, forbidden.problem)
         assertEquals("Your organization must be verified.", forbidden.message)
+        assertEquals(403, forbidden.status)
         assertEquals("OpenAI answered HTTP 502", StyleDesigner.error(502, null, null).message)
 
         assertEquals(20L, StyleDesigner.error(429, error("rate_limit_exceeded"), " 20 ").retryAfterSeconds)

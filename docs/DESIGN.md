@@ -206,7 +206,8 @@ Besides the built-in styles, the user can make their own (**Make your own
 style**), on their own OpenAI account:
 
 1. **Key.** They paste an OpenAI API key. A free call (`GET /v1/models`)
-   checks it; then it's encrypted with a key that stays in the Android
+   checks it (a key restricted to the chat and image models is refused that
+   call with a 403 but still accepted); then it's encrypted with a key that stays in the Android
    Keystore and saved in `noBackupFilesDir`, so it's never in a backup. It's
    only ever sent to OpenAI.
 2. **Conversation.** `StyleDesigner` chats with `gpt-5.4-mini` (Chat
@@ -224,7 +225,10 @@ style**), on their own OpenAI account:
    its pixel-art scene and the preview, so she looks the same in all of them.
    Each picture is saved as soon as it's drawn, so a run that's stopped picks
    up where it left off; rate limits, server errors and the network are
-   retried. When all 30 are there the style is offered like the built-in ones,
+   retried. WorkManager stops a worker after ten minutes, losing a picture
+   still being drawn though OpenAI charges for it, so a run only starts
+   pictures in its first four minutes (each has at most five to finish) and
+   queues the next run for the rest. When all 30 are there the style is offered like the built-in ones,
    and the app switches to it. The main screen shows its progress, or why it
    stopped (key, credit, OpenAI's safety system, the network), with Continue.
 

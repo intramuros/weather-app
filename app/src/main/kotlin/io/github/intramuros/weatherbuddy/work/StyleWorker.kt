@@ -2,6 +2,7 @@ package io.github.intramuros.weatherbuddy.work
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.os.SystemClock
 import android.util.Log
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -34,6 +35,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -43,6 +45,11 @@ import java.util.concurrent.atomic.AtomicReference
  * picture, so she looks the same in all of them. Every picture is saved as soon
  * as it's drawn, so a run that is stopped picks up where it left off. Once all
  * are there, the app switches to the style.
+ *
+ * WorkManager stops a worker after ten minutes, and a picture still being drawn
+ * then is lost, though OpenAI charges for it. So a run only starts pictures in
+ * its first [START_WINDOW_MS], which leaves the last ones time to finish
+ * ([OpenAiClient.IMAGE_TIMEOUT_MS]), and leaves the rest to the next run.
  */
 class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     private val store = CustomStyleStore(applicationContext)
@@ -51,6 +58,19 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
     private class Failure(val problem: StyleProblem, val message: String) {
         val fatal get() = problem == StyleProblem.KEY || problem == StyleProblem.QUOTA || problem == StyleProblem.OTHER
     }
+
+    /** What became of a picture. */
+    private sealed interface Outcome {
+        data object Drawn : Outcome
+
+        /** Too late in the run to start; the next run draws it. */
+        data object Later : Outcome
+
+        class Failed(val failure: Failure) : Outcome
+    }
+
+    /** When this run stops starting pictures. */
+    private val startBy = SystemClock.elapsedRealtime() + START_WINDOW_MS
 
     override suspend fun doWork(): Result {
         val style = withContext(Dispatchers.IO) { store.load(inputData.getString(KEY_SLUG)) } ?: return Result.failure()
@@ -61,38 +81,56 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             store.missing(style)
         }
         val done = AtomicInteger(ScenePicture.entries.size - missing.size)
+        val drawnBefore = done.get()
         setProgress(workDataOf(KEY_DONE to done.get()))
 
         // She has to look the same in every picture, so the one the others copy comes first.
         if (CustomStyle.REFERENCE in missing) {
-            draw(key, style, CustomStyle.REFERENCE, reference = null)?.let { return endWith(style, it) }
-            setProgress(workDataOf(KEY_DONE to done.incrementAndGet()))
+            when (val outcome = draw(key, style, CustomStyle.REFERENCE, reference = null)) {
+                Outcome.Drawn -> setProgress(workDataOf(KEY_DONE to done.incrementAndGet()))
+                Outcome.Later -> return endWith(style, Failure(StyleProblem.NETWORK, ""))
+                is Outcome.Failed -> return endWith(style, outcome.failure)
+            }
         }
         val reference = withContext(Dispatchers.IO) { store.file(style, CustomStyle.REFERENCE).readBytes() }
 
         val failure = AtomicReference<Failure?>(null)
+        val later = AtomicBoolean(false)
         val permits = Semaphore(PARALLEL)
         coroutineScope {
             for (picture in missing - CustomStyle.REFERENCE) {
                 launch {
                     permits.withPermit {
                         if (failure.get()?.fatal == true) return@withPermit
-                        val problem = draw(key, style, picture, reference)
-                        if (problem == null) {
-                            setProgress(workDataOf(KEY_DONE to done.incrementAndGet()))
-                        } else {
+                        when (val outcome = draw(key, style, picture, reference)) {
+                            Outcome.Drawn -> setProgress(workDataOf(KEY_DONE to done.incrementAndGet()))
+                            Outcome.Later -> later.set(true)
                             // A problem that ends the run outranks one that only cost a picture.
-                            failure.updateAndGet { if (it?.fatal == true) it else problem }
+                            is Outcome.Failed -> failure.updateAndGet { if (it?.fatal == true) it else outcome.failure }
                         }
                     }
                 }
             }
         }
-        failure.get()?.let { return endWith(style, it) }
+        val failed = failure.get()
+        if (failed?.fatal == true) return endWith(style, failed)
+        if (later.get()) {
+            // A run that drew nothing would only be followed by another one like it.
+            if (done.get() == drawnBefore) return endWith(style, failed ?: Failure(StyleProblem.NETWORK, ""))
+            continueLater(style)
+            return Result.success()
+        }
+        failed?.let { return endWith(style, it) }
 
         SettingsRepository(applicationContext).setStyle(style)
         Refresher.run(applicationContext, fetch = false)
         return Result.success()
+    }
+
+    /** The next run, after this one: appended, so this run isn't cancelled by its own successor. */
+    private fun continueLater(style: CustomStyle) {
+        WorkManager.getInstance(applicationContext)
+            .enqueueUniqueWork(workName(style.slug), ExistingWorkPolicy.APPEND_OR_REPLACE, request(style))
     }
 
     /** Waits and tries again if only the network failed; otherwise stops and says why. */
@@ -104,8 +142,8 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         return Result.failure(workDataOf(KEY_PROBLEM to failure.problem.name))
     }
 
-    /** Draws and saves one picture, trying again after a hiccup; returns why it couldn't, or `null`. */
-    private suspend fun draw(key: String, style: CustomStyle, picture: ScenePicture, reference: ByteArray?): Failure? {
+    /** Draws and saves one picture, trying again after a hiccup, unless it's too late in the run to start. */
+    private suspend fun draw(key: String, style: CustomStyle, picture: ScenePicture, reference: ByteArray?): Outcome {
         val prompt = ScenePrompts.forPicture(style.description, picture)
         val scene = withContext(Dispatchers.IO) {
             applicationContext.assets.open(Style.PIXEL_ART.scene(picture)).use { it.readBytes() }
@@ -115,13 +153,14 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         var waitSeconds = 0L
         for (attempt in 0 until ATTEMPTS) {
             delay(TimeUnit.SECONDS.toMillis(minOf(waitSeconds * attempt, MAX_WAIT_SECONDS)))
+            if (SystemClock.elapsedRealtime() > startBy) return Outcome.Later
             val webp = try {
                 OpenAiClient.draw(key, prompt, images, style.quality)
             } catch (e: OpenAiException) {
                 Log.w(TAG, "${picture.slug}: ${e.problem}")
                 last = Failure(problemOf(e), e.message.orEmpty())
                 waitSeconds = when (e.problem) {
-                    OpenAiException.Problem.KEY, OpenAiException.Problem.QUOTA, OpenAiException.Problem.OTHER -> return last
+                    OpenAiException.Problem.KEY, OpenAiException.Problem.QUOTA, OpenAiException.Problem.OTHER -> return Outcome.Failed(last)
                     OpenAiException.Problem.BUSY -> e.retryAfterSeconds ?: RETRY_SECONDS
                     OpenAiException.Problem.REJECTED, OpenAiException.Problem.SERVER -> RETRY_SECONDS
                 }
@@ -139,13 +178,13 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             }
             return try {
                 withContext(Dispatchers.IO) { store.savePicture(style, picture, webp) }
-                null
+                Outcome.Drawn
             } catch (e: IOException) {
                 // The style was deleted while it was being drawn.
-                Failure(StyleProblem.OTHER, e.message.orEmpty())
+                Outcome.Failed(Failure(StyleProblem.OTHER, e.message.orEmpty()))
             }
         }
-        return last
+        return Outcome.Failed(last)
     }
 
     private fun isPicture(bytes: ByteArray): Boolean {
@@ -171,6 +210,9 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
 
         /** OpenAI's image limits are low for new accounts; three at once still takes only minutes. */
         private const val PARALLEL = 3
+
+        /** With the slowest picture's [OpenAiClient.IMAGE_TIMEOUT_MS] after it, a run ends within WorkManager's ten minutes. */
+        private val START_WINDOW_MS = TimeUnit.MINUTES.toMillis(4)
         private const val ATTEMPTS = 4
         private const val RETRY_SECONDS = 15L
         private const val MAX_WAIT_SECONDS = 120L
@@ -180,15 +222,16 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
 
         /** Draws [style]'s missing pictures, unless that's already under way. */
         fun start(context: Context, style: CustomStyle) {
-            val request = OneTimeWorkRequestBuilder<StyleWorker>()
-                .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                .setInputData(workDataOf(KEY_SLUG to style.slug))
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
-                .addTag(WORK_TAG)
-                .addTag(slugTag(style.slug))
-                .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(workName(style.slug), ExistingWorkPolicy.KEEP, request)
+            WorkManager.getInstance(context).enqueueUniqueWork(workName(style.slug), ExistingWorkPolicy.KEEP, request(style))
         }
+
+        private fun request(style: CustomStyle) = OneTimeWorkRequestBuilder<StyleWorker>()
+            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+            .setInputData(workDataOf(KEY_SLUG to style.slug))
+            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 1, TimeUnit.MINUTES)
+            .addTag(WORK_TAG)
+            .addTag(slugTag(style.slug))
+            .build()
 
         fun stop(context: Context, slug: String) {
             WorkManager.getInstance(context).cancelUniqueWork(workName(slug))

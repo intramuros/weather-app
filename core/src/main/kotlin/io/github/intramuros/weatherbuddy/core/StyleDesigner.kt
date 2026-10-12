@@ -215,7 +215,7 @@ object StyleDesigner {
             else -> OpenAiException.Problem.OTHER
         }
         val message = error?.message?.takeIf { it.isNotBlank() } ?: "OpenAI answered HTTP $status"
-        return OpenAiException(problem, message, retryAfter?.trim()?.toLongOrNull())
+        return OpenAiException(problem, message, retryAfter?.trim()?.toLongOrNull(), status = status)
     }
 
     private inline fun <reified T> decode(body: String): T =
@@ -333,6 +333,8 @@ class OpenAiException(
     /** How long OpenAI asked to wait before trying again, if it said. */
     val retryAfterSeconds: Long? = null,
     cause: Throwable? = null,
+    /** The HTTP status OpenAI answered with, if it answered. */
+    val status: Int? = null,
 ) : IOException(message, cause) {
     enum class Problem {
         /** The key is wrong or has been revoked. */
