@@ -81,7 +81,7 @@ class BuddyWallpaperService : WallpaperService() {
          * A new place's weather comes in a refresh of its own, which outlives this engine.
          */
         private fun followPhone() = scope.launch {
-            if (LocationFollower.follow(this@BuddyWallpaperService, LocationFollower.WALLPAPER_GAP_MS)) {
+            if (LocationFollower.follow(this@BuddyWallpaperService, LocationFollower.AUTO_GAP_MS)) {
                 RefreshWorker.runOnce(this@BuddyWallpaperService)
             }
         }

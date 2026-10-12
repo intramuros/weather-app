@@ -25,10 +25,10 @@ import android.location.Location as AndroidLocation
 
 /**
  * Coarse location from the platform [LocationManager], without Google Play
- * services. Android only answers while the app is in use, which takes more
- * than having it open (see [io.github.intramuros.weatherbuddy.LocationFollower]);
- * the scheduled background refresh reuses the last saved location, so no
- * background-location permission is needed.
+ * services. Unless location is allowed all the time, Android only answers
+ * while the app is in use, which takes more than having it open (see
+ * [io.github.intramuros.weatherbuddy.LocationFollower]); the scheduled
+ * background refresh then reuses the last saved location.
  */
 object LocationProvider {
     /** A fix another app got this recently will do; an older one may be from a place the phone has left. */
@@ -39,9 +39,21 @@ object LocationProvider {
             PackageManager.PERMISSION_GRANTED
 
     /**
+     * Whether location is allowed all the time, not only while the app is in use. Android 8 and 9
+     * have no such choice: any location access covers it.
+     */
+    fun hasBackgroundPermission(context: Context) =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+        } else {
+            hasPermission(context)
+        }
+
+    /**
      * Whether Android would say where the phone is right now. With "only while using the app"
      * it counts the app as in use while it's open, while its animated wallpaper is on screen,
-     * and, from Android 11 on, for a while after its widget is tapped.
+     * and, from Android 11 on, for a while after its widget is tapped; with "all the time", always.
      */
     fun canLocateNow(context: Context): Boolean {
         if (!hasPermission(context)) return false

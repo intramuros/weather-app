@@ -25,10 +25,12 @@ import java.util.concurrent.TimeUnit
 class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val tapped = inputData.getBoolean(KEY_TAPPED, false)
-        // Android counts a tap on the widget as using the app (from Android 11 on), so it may say where the phone is.
+        // Android counts a tap on the widget as using the app (from Android 11 on), so it may say where the phone is;
+        // with location allowed all the time it does for any refresh, which then follows the phone if the user opted in.
         // Where it doesn't, asking would only keep the refresh waiting.
-        if (tapped && LocationProvider.canLocateNow(applicationContext)) {
-            LocationFollower.follow(applicationContext, LocationFollower.MIN_GAP_MS)
+        val follow = tapped || SettingsRepository(applicationContext).current().followInBackground
+        if (follow && LocationProvider.canLocateNow(applicationContext)) {
+            LocationFollower.follow(applicationContext, if (tapped) LocationFollower.MIN_GAP_MS else LocationFollower.AUTO_GAP_MS)
         }
         val result = Refresher.run(applicationContext, fetch = !freshEnough())
         if (inputData.getBoolean(KEY_CHAIN, false)) {

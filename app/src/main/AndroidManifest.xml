@@ -6,6 +6,8 @@
     <!-- Coarse (~1 km) is plenty for weather; only used while the app is in use: open, its
          animated wallpaper on screen, or its widget tapped. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- Only asked for when the user turns on "Follow me in the background", for the scheduled refresh. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
     <uses-feature

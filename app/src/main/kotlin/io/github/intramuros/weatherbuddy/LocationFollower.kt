@@ -9,18 +9,23 @@ import kotlinx.coroutines.sync.withLock
 
 /**
  * Follows the phone to a new place, quietly: if it can't be found, the saved
- * place stays. Android only says where the phone is while the app is in use,
- * so it's looked for when the app comes into view, when the animated
- * wallpaper does, and when the widget's refresh button is tapped
- * ([LocationProvider.canLocateNow]); the scheduled refresh in between reuses
- * the saved place.
+ * place stays. Unless location is allowed all the time, Android only says
+ * where the phone is while the app is in use, so it's looked for when the app
+ * comes into view, when the animated wallpaper does, and when the widget's
+ * refresh button is tapped ([LocationProvider.canLocateNow]). The scheduled
+ * refresh in between looks too only if the user opted in
+ * ([io.github.intramuros.weatherbuddy.data.Settings.followInBackground]);
+ * otherwise it reuses the saved place.
  */
 object LocationFollower {
     /** For opening the app or tapping the widget: a lookup this recent is still current. */
     const val MIN_GAP_MS = 2 * 60 * 1000L
 
-    /** For the wallpaper, which comes into view every time the phone is unlocked. */
-    const val WALLPAPER_GAP_MS = 15 * 60 * 1000L
+    /**
+     * For lookups nobody asked for: the wallpaper coming into view, which it does every time
+     * the phone is unlocked, and the scheduled refresh.
+     */
+    const val AUTO_GAP_MS = 15 * 60 * 1000L
 
     private val mutex = Mutex()
 
