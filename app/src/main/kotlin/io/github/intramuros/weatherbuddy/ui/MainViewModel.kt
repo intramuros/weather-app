@@ -98,7 +98,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
      * old or for another place, then follows the phone if it has moved.
      */
     fun onStart() {
-        if (opening?.isActive == true) return
+        if (opening?.isActive == true) {
+            // Still looking for the phone since the last start, which read the weather before
+            // the app was left; what the background refresh fetched since then shows anyway.
+            viewModelScope.launch { loadFromDisk() }
+            return
+        }
         opening = viewModelScope.launch {
             loadFromDisk()
             val snapshot = state.value.snapshot
