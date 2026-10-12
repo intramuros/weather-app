@@ -40,6 +40,11 @@ data class Settings(
     val location: Location?,
     /** Town or city of [location], if the platform could name it. */
     val placeName: String?,
+    /**
+     * Whether the scheduled refresh looks for the phone too, not only the app while in use.
+     * Needs location allowed all the time ([LocationProvider.hasBackgroundPermission]).
+     */
+    val followInBackground: Boolean,
     /** Identifies the picture last set as wallpaper, to avoid re-setting an identical one. */
     val wallpaperKey: String?,
 )
@@ -67,6 +72,7 @@ class SettingsRepository(context: Context) {
             wallpaperLock = prefs[WALLPAPER_LOCK] ?: false,
             location = if (lat != null && lon != null) Location(lat, lon) else null,
             placeName = prefs[PLACE_NAME],
+            followInBackground = prefs[FOLLOW_IN_BACKGROUND] ?: false,
             wallpaperKey = prefs[WALLPAPER_KEY],
         )
     }.flowOn(Dispatchers.IO) // A made style is read from its file.
@@ -91,6 +97,8 @@ class SettingsRepository(context: Context) {
         if (placeName != null) it[PLACE_NAME] = placeName else it.remove(PLACE_NAME)
     }
 
+    suspend fun setFollowInBackground(enabled: Boolean) = store.edit { it[FOLLOW_IN_BACKGROUND] = enabled }
+
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }
 
     private companion object {
@@ -111,5 +119,6 @@ class SettingsRepository(context: Context) {
         val LONGITUDE = doublePreferencesKey("longitude")
         val WALLPAPER_KEY = stringPreferencesKey("wallpaper_key")
         val PLACE_NAME = stringPreferencesKey("place_name")
+        val FOLLOW_IN_BACKGROUND = booleanPreferencesKey("follow_in_background")
     }
 }

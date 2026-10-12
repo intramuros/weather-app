@@ -18,7 +18,7 @@ set as the home and/or lock screen wallpaper.
 | Rain nowcast | Buienradar `raintext` (2 h ahead, 5-minute steps) |
 | Radar loop (main screen) | Buienradar future rain images over standard OpenStreetMap base tiles; available forecast up to 3 hours, sampled about every 10 minutes |
 | Language | **Kotlin** throughout. Pure logic sits in a plain Kotlin module (`core/`), so it can become Kotlin Multiplatform if iOS ever happens. |
-| Location | Coarse, rounded to ~1 km, and read only while the app is in use, which Android takes to cover more than having it open: each time the app comes into view, when the animated wallpaper does (at most every 15 minutes), and when the widget's refresh button is tapped (Android 11 and up). No background-location permission; the scheduled background refresh reuses the last saved location (default: De Bilt), so a phone showing only the widget or a still wallpaper moves with it only when it's tapped or the app is opened. Its town name comes from the platform `Geocoder`, when it has one. |
+| Location | Coarse, rounded to ~1 km, and read only while the app is in use, which Android takes to cover more than having it open: each time the app comes into view, when the animated wallpaper does (at most every 15 minutes), and when the widget's refresh button is tapped (Android 11 and up). Background location is opt-in: with **Follow me in the background** on and location allowed all the time (asked for only then; Android 8 and 9 have no separate choice), the scheduled refresh also looks when it runs (every 10 to 90 minutes, depending on the rain). Otherwise it reuses the last saved location (default: De Bilt), so a phone showing only the widget or a still wallpaper moves with it only when it's tapped or the app is opened. Its town name comes from the platform `Geocoder`, when it has one. |
 
 ## Architecture
 
@@ -42,7 +42,8 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   LiveRenderer           draws the plan at any moment: the picture, then the
                          particles for that frame
   LocationFollower       follows the phone to a new place while the app is in use:
-                         on opening, from the wallpaper, on the widget's button
+                         on opening, from the wallpaper, on the widget's button;
+                         if opted in, also on the scheduled refresh
   BuddyWallpaperService  the animated wallpaper; draws only while visible
   InfoOverlay            draws the widget's icons and text: place, temperature,
                          condition, humidity, wind

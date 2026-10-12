@@ -5,6 +5,7 @@ import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
@@ -169,6 +170,8 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
     val requestLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) vm.useMyLocation()
     }
+    // The answer is read again on resume, with the rest of what the system settings say.
+    val requestBackgroundLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     val settings = state.settings
     val location = settings?.location ?: Location.DEFAULT
     val playback = rememberRainPlayback(state.snapshot, location)
@@ -181,7 +184,7 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
         onStopOrDispose {}
     }
     LifecycleResumeEffect(Unit) {
-        vm.checkLiveWallpaper()
+        vm.checkSystemSettings()
         onPauseOrDispose {}
     }
 
@@ -316,6 +319,34 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
                         },
                         enabled = !state.busy,
                     ) { Text(stringResource(R.string.use_my_location)) }
+                }
+                // Missing "all the time" only matters once the user asked for it.
+                val missingBackground = settings.followInBackground && state.locationAllowed && !state.backgroundLocationAllowed
+                SwitchRow(
+                    label = stringResource(R.string.follow_in_background),
+                    checked = settings.followInBackground,
+                    onChange = { on ->
+                        vm.setFollowInBackground(on)
+                        // From Android 11, this opens the system's page for the app's location access.
+                        if (on && !state.backgroundLocationAllowed && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            requestBackgroundLocation.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                        }
+                    },
+                    // It can always be turned off, but only turned on once location is allowed at all.
+                    enabled = state.locationAllowed || settings.followInBackground,
+                    supporting = stringResource(
+                        when {
+                            !state.locationAllowed -> R.string.follow_in_background_needs_location
+                            missingBackground -> R.string.follow_in_background_not_allowed
+                            else -> R.string.follow_in_background_hint
+                        },
+                    ),
+                )
+                if (missingBackground) {
+                    // Once declined, Android stops asking, so the app's settings are the way to allow it.
+                    TextButton(onClick = { context.startActivity(appSettingsIntent(context)) }) {
+                        Text(stringResource(R.string.open_app_settings))
+                    }
                 }
 
                 Button(onClick = { vm.refresh() }, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
@@ -546,6 +577,10 @@ private fun SwitchRow(
         Switch(checked = checked, onCheckedChange = null, enabled = enabled)
     }
 }
+
+/** The system's page for this app, where its permissions are. */
+private fun appSettingsIntent(context: Context) =
+    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
 
 private fun setLiveWallpaper(context: Context) {
     try {

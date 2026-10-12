@@ -47,6 +47,9 @@ data class UiState(
     val unfinished: List<UnfinishedStyle> = emptyList(),
     /** Whether our animated wallpaper is the current home screen wallpaper. */
     val liveWallpaperActive: Boolean = false,
+    /** Whether location is allowed at all, and all the time. */
+    val locationAllowed: Boolean = false,
+    val backgroundLocationAllowed: Boolean = false,
     val busy: Boolean = false,
     @param:StringRes val message: Int? = null,
 )
@@ -162,8 +165,16 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun refresh() = viewModelScope.launch { refreshNow(fetch = true) }
 
-    /** Call when returning to the app, e.g. from the system wallpaper screen. */
-    fun checkLiveWallpaper() = _state.update { it.copy(liveWallpaperActive = BuddyWallpaperService.isActive(app)) }
+    fun setFollowInBackground(enabled: Boolean) = viewModelScope.launch { settingsRepo.setFollowInBackground(enabled) }
+
+    /** Call when returning to the app, e.g. from the system wallpaper screen, a permission prompt or the app's settings. */
+    fun checkSystemSettings() = _state.update {
+        it.copy(
+            liveWallpaperActive = BuddyWallpaperService.isActive(app),
+            locationAllowed = LocationProvider.hasPermission(app),
+            backgroundLocationAllowed = LocationProvider.hasBackgroundPermission(app),
+        )
+    }
 
     private suspend fun updateLocation() {
         _state.update { it.copy(busy = true) }
