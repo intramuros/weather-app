@@ -3,7 +3,8 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- Coarse (~1 km) is plenty for weather; only used while the app is open. -->
+    <!-- Coarse (~1 km) is plenty for weather; only used while the app is in use: open, its
+         animated wallpaper on screen, or its widget tapped. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
