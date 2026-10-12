@@ -23,13 +23,17 @@ object LocationFollower {
 
     /**
      * For lookups nobody asked for: the wallpaper coming into view, which it does every time
-     * the phone is unlocked, and the scheduled refresh.
+     * the phone is unlocked, and the scheduled refresh, which is spaced by its own schedule
+     * when Android has ended the process in between.
      */
     const val AUTO_GAP_MS = 15 * 60 * 1000L
 
     private val mutex = Mutex()
 
-    /** When the last lookup ended, by [SystemClock.elapsedRealtime]; `null` before the first. */
+    /**
+     * When the last lookup ended, by [SystemClock.elapsedRealtime]; `null` before the first in
+     * this process.
+     */
     private var lastLookup: Long? = null
 
     /**
