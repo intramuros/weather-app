@@ -1,26 +1,24 @@
 package io.github.intramuros.weatherbuddy.core
 
 /**
- * Art styles. Every style draws the same [ScenePicture]s, one finished square
- * picture each at `scenes/<style>/<picture>.webp`, so switching style only
- * swaps the folder. Only the weather moves, as particles over the picture.
+ * The app's own art styles. Every style draws the same [ScenePicture]s, one
+ * finished square picture each at `scenes/<style>/<picture>.webp`, so switching
+ * style only swaps the folder. Only the weather moves, as particles over the picture.
  *
  * A style ships either all of its pictures or none: the app only offers the
  * styles whose folder is complete.
  */
 enum class Style(
-    val slug: String,
-    val displayName: String,
-    /** Scale with nearest-neighbour instead of smoothing, and snap particles to the art's pixel grid. */
-    val pixelated: Boolean,
-    /** Frames per second for the live wallpaper. Pixel art looks right choppy. */
-    val fps: Int,
+    override val slug: String,
+    override val displayName: String,
+    override val pixelated: Boolean,
+    override val fps: Int,
     /**
      * Whether each picture comes with the widget's icons ([sceneIcons]) and text
      * spots measured on it. Otherwise the widget draws its text in the sky.
      */
     val hasWidgetIcons: Boolean,
-) {
+) : ArtStyle {
     PIXEL_ART("pixel-art", "Pixel art", pixelated = true, fps = 12, hasWidgetIcons = true),
     ANIME("anime", "Anime", pixelated = false, fps = 24, hasWidgetIcons = false),
     UKIYO_E("ukiyo-e", "Ukiyo-e", pixelated = false, fps = 24, hasWidgetIcons = false),
@@ -39,10 +37,7 @@ enum class Style(
     /** The widget's icons for a picture: the same size, transparent elsewhere. */
     fun sceneIcons(picture: ScenePicture) = "scenes/$slug/${picture.slug}-icons.webp"
 
-    /** How this style paints a particle: ARGB colour and line width in [ArtCanvas] units. */
-    data class ParticleLook(val argb: Int, val width: Double)
-
-    fun particleLook(kind: ParticleKind): ParticleLook = when (this) {
+    override fun particleLook(kind: ParticleKind): ParticleLook = when (this) {
         PIXEL_ART -> when (kind) {
             ParticleKind.DROP -> ParticleLook(0xFF639BFF.toInt(), 1.0)
             ParticleKind.FLAKE -> ParticleLook(0xFFFFFFFF.toInt(), 1.0)

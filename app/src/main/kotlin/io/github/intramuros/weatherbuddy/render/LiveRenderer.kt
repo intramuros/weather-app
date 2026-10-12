@@ -1,16 +1,16 @@
 package io.github.intramuros.weatherbuddy.render
 
-import android.content.res.AssetManager
+import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
 import androidx.core.graphics.withClip
 import androidx.core.graphics.withTranslation
 import io.github.intramuros.weatherbuddy.core.ArtCanvas
+import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.ParticleField
 import io.github.intramuros.weatherbuddy.core.ParticleSpec
 import io.github.intramuros.weatherbuddy.core.RenderPlan
-import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.render.Compositor.Companion.bitmapPaint
 import io.github.intramuros.weatherbuddy.render.Compositor.Companion.coverBounds
 import io.github.intramuros.weatherbuddy.render.Compositor.Companion.mirroredIf
@@ -27,8 +27,8 @@ import kotlin.math.roundToInt
  *
  * Use from one thread only.
  */
-class LiveRenderer(assets: AssetManager, private val plan: RenderPlan, private val artStyle: Style) {
-    private val picture = Compositor(assets).load(artStyle.scene(plan.picture))
+class LiveRenderer(context: Context, private val plan: RenderPlan, private val artStyle: ArtStyle) {
+    private val picture = Compositor(context).load(artStyle, plan.picture)
     private val fields = plan.particles.mapIndexed { i, spec -> spec to ParticleField(spec, seed = i + 1L) }
     private val picturePaint = bitmapPaint(artStyle)
     private val particlePaint = Paint().apply { isAntiAlias = !artStyle.pixelated }

@@ -1,6 +1,6 @@
 package io.github.intramuros.weatherbuddy.render
 
-import android.content.res.AssetManager
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -9,21 +9,24 @@ import android.graphics.RectF
 import android.util.Log
 import androidx.core.graphics.createBitmap
 import androidx.core.graphics.withScale
+import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.RenderPlan
-import io.github.intramuros.weatherbuddy.core.Style
+import io.github.intramuros.weatherbuddy.core.ScenePicture
 import java.io.FileNotFoundException
 
 /**
- * Draws a [RenderPlan]'s picture in a [Style] as a still bitmap: scaled to cover
+ * Draws a [RenderPlan]'s picture in an [ArtStyle] as a still bitmap: scaled to cover
  * the target, cropped around the buddy, with the widget's [WidgetInfo] on top if given.
  */
-class Compositor(private val assets: AssetManager) {
-    private val overlay by lazy { InfoOverlay(assets) }
+class Compositor(context: Context) {
+    private val app = context.applicationContext
+    private val pictures = PictureSource(app)
+    private val overlay by lazy { InfoOverlay(app.assets) }
 
-    fun render(plan: RenderPlan, style: Style, width: Int, height: Int, info: WidgetInfo? = null): Bitmap {
+    fun render(plan: RenderPlan, style: ArtStyle, width: Int, height: Int, info: WidgetInfo? = null): Bitmap {
         val out = createBitmap(width, height)
         val canvas = Canvas(out)
-        load(style.scene(plan.picture))?.let {
+        load(style, plan.picture)?.let {
             val b = coverBounds(it.width, it.height, width, height)
             canvas.drawBitmap(it, null, RectF(b.left, b.top, b.left + b.width, b.top + b.height), bitmapPaint(style))
             it.recycle()
@@ -32,11 +35,11 @@ class Compositor(private val assets: AssetManager) {
         return out
     }
 
-    internal fun load(path: String): Bitmap? =
+    internal fun load(style: ArtStyle, picture: ScenePicture): Bitmap? =
         try {
-            assets.open(path).use { BitmapFactory.decodeStream(it) }
+            pictures.open(style, picture).use { BitmapFactory.decodeStream(it) }
         } catch (_: FileNotFoundException) {
-            Log.w(TAG, "missing picture $path")
+            Log.w(TAG, "missing picture ${style.slug}/${picture.slug}")
             null
         }
 
@@ -52,7 +55,7 @@ class Compositor(private val assets: AssetManager) {
         const val FOCUS_Y = 0.67f
 
         /** Pixel art scales with nearest-neighbour instead of smoothing, to keep pixels crisp. */
-        fun bitmapPaint(style: Style) = Paint().apply { isFilterBitmap = !style.pixelated }
+        fun bitmapPaint(style: ArtStyle) = Paint().apply { isFilterBitmap = !style.pixelated }
 
         /** Draws [block] flipped around the middle of [bounds] when [mirror] is set. */
         inline fun Canvas.mirroredIf(mirror: Boolean, bounds: Bounds, block: Canvas.() -> Unit) {

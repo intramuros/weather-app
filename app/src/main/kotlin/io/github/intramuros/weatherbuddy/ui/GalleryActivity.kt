@@ -67,17 +67,25 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.intramuros.weatherbuddy.R
+import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.SceneKind
 import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.core.TimeOfDay
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.labelRes
+import io.github.intramuros.weatherbuddy.render.PictureSource
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.withContext
 
 /** Every picture of every style, as a grid; tap one to see it whole and swipe through the rest. */
@@ -85,7 +93,7 @@ class GalleryActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val initial = Style.fromSlug(intent.getStringExtra(EXTRA_STYLE))
+        val initial = intent.getStringExtra(EXTRA_STYLE)
         setContent {
             WeatherBuddyTheme {
                 GalleryScreen(initial, onBack = ::finish)
@@ -97,38 +105,41 @@ class GalleryActivity : ComponentActivity() {
         private const val EXTRA_STYLE = "style"
 
         /** Opens the gallery on [style]'s pictures. */
-        fun intent(context: Context, style: Style): Intent =
+        fun intent(context: Context, style: ArtStyle): Intent =
             Intent(context, GalleryActivity::class.java).putExtra(EXTRA_STYLE, style.slug)
     }
 }
 
 class GalleryViewModel(app: Application) : AndroidViewModel(app) {
-    private val assets = app.assets
+    private val pictures = PictureSource(app)
 
-    val styles: List<Style> = SettingsRepository(app).availableStyles.ifEmpty { listOf(Style.PIXEL_ART) }
+    /** `null` until they're read: made styles come from files. */
+    val styles: StateFlow<List<ArtStyle>?> = flow {
+        emit(withContext(Dispatchers.IO) { SettingsRepository(app).availableStyles() }.ifEmpty { listOf(Style.PIXEL_ART) })
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val thumbnails = object : LruCache<String, Bitmap>(THUMB_CACHE_BYTES) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
-    suspend fun thumbnail(style: Style, picture: ScenePicture): Bitmap? {
-        val path = style.scene(picture)
-        return thumbnails.get(path) ?: decode(path, THUMB_SAMPLE)?.also { thumbnails.put(path, it) }
+    suspend fun thumbnail(style: ArtStyle, picture: ScenePicture): Bitmap? {
+        val key = "${style.slug}/${picture.slug}"
+        return thumbnails.get(key) ?: decode(style, picture, THUMB_SAMPLE)?.also { thumbnails.put(key, it) }
     }
 
-    suspend fun picture(style: Style, picture: ScenePicture): Bitmap? = decode(style.scene(picture), 1)
+    suspend fun picture(style: ArtStyle, picture: ScenePicture): Bitmap? = decode(style, picture, 1)
 
-    private suspend fun decode(path: String, sampleSize: Int): Bitmap? = withContext(Dispatchers.IO) {
+    private suspend fun decode(style: ArtStyle, picture: ScenePicture, sampleSize: Int): Bitmap? = withContext(Dispatchers.IO) {
         try {
             val options = BitmapFactory.Options().apply { inSampleSize = sampleSize }
-            assets.open(path).use { BitmapFactory.decodeStream(it, null, options) }
+            pictures.open(style, picture).use { BitmapFactory.decodeStream(it, null, options) }
         } catch (_: IOException) {
             null
         }
     }
 
     private companion object {
-        /** The pictures are 1200 px square; a quarter of that is plenty for a grid cell. */
+        /** The pictures are 1024 to 1200 px square; a quarter of that is plenty for a grid cell. */
         const val THUMB_SAMPLE = 4
 
         /** Room for two styles' thumbnails, so switching back and forth doesn't decode again. */
@@ -137,10 +148,10 @@ class GalleryViewModel(app: Application) : AndroidViewModel(app) {
 }
 
 @Composable
-private fun GalleryScreen(initial: Style?, onBack: () -> Unit, vm: GalleryViewModel = viewModel()) {
-    val styles = vm.styles
-    var styleSlug by rememberSaveable { mutableStateOf((initial?.takeIf { it in styles } ?: styles.first()).slug) }
-    val style = Style.fromSlug(styleSlug)?.takeIf { it in styles } ?: styles.first()
+private fun GalleryScreen(initial: String?, onBack: () -> Unit, vm: GalleryViewModel = viewModel()) {
+    val styles = vm.styles.collectAsStateWithLifecycle().value ?: return
+    var styleSlug by rememberSaveable { mutableStateOf(initial) }
+    val style = styles.firstOrNull { it.slug == styleSlug } ?: styles.first()
     // The picture shown full screen, by its index in ScenePicture.entries, and the one last shown.
     var open by rememberSaveable { mutableStateOf<Int?>(null) }
     var lastOpen by rememberSaveable { mutableStateOf<Int?>(null) }
@@ -205,7 +216,7 @@ private fun GalleryScreen(initial: Style?, onBack: () -> Unit, vm: GalleryViewMo
 }
 
 @Composable
-private fun Thumbnail(style: Style, picture: ScenePicture, vm: GalleryViewModel, onClick: () -> Unit) {
+private fun Thumbnail(style: ArtStyle, picture: ScenePicture, vm: GalleryViewModel, onClick: () -> Unit) {
     val bitmap by produceState<Bitmap?>(null, style, picture) { value = vm.thumbnail(style, picture) }
     val (name, detail) = pictureLabel(picture)
     Column(
@@ -242,7 +253,7 @@ private fun Thumbnail(style: Style, picture: ScenePicture, vm: GalleryViewModel,
 
 /** One picture whole, on black; swipe for the style's other pictures. */
 @Composable
-private fun Viewer(style: Style, initialPage: Int, vm: GalleryViewModel, onPage: (Int) -> Unit, onClose: () -> Unit) {
+private fun Viewer(style: ArtStyle, initialPage: Int, vm: GalleryViewModel, onPage: (Int) -> Unit, onClose: () -> Unit) {
     val pictures = ScenePicture.entries
     val pager = rememberPagerState(initialPage = initialPage) { pictures.size }
     LaunchedEffect(pager) { snapshotFlow { pager.currentPage }.collect(onPage) }

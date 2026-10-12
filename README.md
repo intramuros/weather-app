@@ -10,6 +10,12 @@ Nouveau posters), **Van Gogh**, **Watercolour**, **Paper cut**, **Art Deco**
 or **Pop art**; each has one finished picture per kind of weather, and
 **Browse all pictures** shows them all.
 
+You can also **make your own style**: describe it in a short chat, look at a
+preview, and the app draws its 30 pictures on your phone with OpenAI's models.
+This needs your own [OpenAI API key](https://platform.openai.com/api-keys),
+and OpenAI charges your account for the chat and the pictures. The key stays
+on your phone (encrypted, not backed up) and is only sent to OpenAI.
+
 Weather data comes from [Open-Meteo](https://open-meteo.com) (KNMI HARMONIE
 model). [Buienradar](https://www.buienradar.nl) supplies the local rain prediction
 and the animated rain forecast over an OpenStreetMap base map. The forecast map
@@ -38,7 +44,7 @@ during autoplay rather than replaced with unrelated radar history.
 - `tools/scenes/`: the pixel-art scene pictures and the script that turns
   them into assets, plus `import_style.py` for another style's pictures and
   `<style>/PROMPTS.md`, the ChatGPT prompts for every style
-  but pixel art.
+  but pixel art. The app draws the styles you make from the same prompts.
 - `docs/DESIGN.md`: decisions, asset spec and roadmap.
 
 ## Install on your phone

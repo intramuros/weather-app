@@ -12,6 +12,7 @@ import android.graphics.Shader
 import android.graphics.Typeface
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.labelRes
+import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.CompassPoint
 import io.github.intramuros.weatherbuddy.core.Condition
 import io.github.intramuros.weatherbuddy.core.Conditions
@@ -104,8 +105,12 @@ internal class InfoOverlay(private val assets: AssetManager) {
         )
     }
 
-    fun draw(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: Style, width: Int, height: Int) {
-        if (style.hasWidgetIcons) drawOnIcons(canvas, info, picture, style, width, height) else drawInSky(canvas, info, width, height)
+    fun draw(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: ArtStyle, width: Int, height: Int) {
+        if (style is Style && style.hasWidgetIcons) {
+            drawOnIcons(canvas, info, picture, style, width, height)
+        } else {
+            drawInSky(canvas, info, width, height)
+        }
     }
 
     private fun drawOnIcons(canvas: Canvas, info: WidgetInfo, picture: ScenePicture, style: Style, width: Int, height: Int) {

@@ -33,6 +33,12 @@
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 
+        <activity
+            android:name=".ui.StyleStudioActivity"
+            android:exported="false"
+            android:parentActivityName=".ui.MainActivity"
+            android:windowSoftInputMode="adjustResize" />
+
         <receiver
             android:name=".widget.WeatherWidgetReceiver"
             android:exported="true"
