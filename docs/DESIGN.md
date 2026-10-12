@@ -11,7 +11,7 @@ set as the home and/or lock screen wallpaper.
 | Platform | Android first |
 | Art styles | **Pixel art**, **Anime**, **Ukiyo-e**, **Delft blue**, **Mucha**, **Van Gogh**, **Watercolour**, **Paper cut**, **Art Deco** and **Pop art** (all but pixel art made with ChatGPT from the pixel-art scenes: `tools/scenes/<style>/PROMPTS.md`; the originals are in `tools/scenes/<style>/source/`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw were first tried as layers combined on the device, with placeholder art, and dropped; they came back as finished pictures like anime.) |
 | Image production | Finished scenes, one per kind of weather and warmth, bundled with the app (offline, free) |
-| Made styles | The user can design their own style in the app, in a chat with OpenAI's `gpt-5.4-mini`, and have `gpt-image-2` draw its 30 pictures on the phone from the same prompts as the built-in styles. It runs on the user's own OpenAI API key, so the app stays free; see [Made styles](#made-styles). |
+| Made styles | The user can design their own style in the app, in a chat with OpenAI's `gpt-5.4-mini`, and have `gpt-image-2` draw its 30 pictures on the phone from the same prompts as the built-in styles. The pictures are drawn on the user's own OpenAI API key, and the chat on it too or on their ChatGPT plan (Sign in with ChatGPT), so the app stays free; see [Made styles](#made-styles). |
 | Character | The same girl in every scene of a style. In the eight styles drawn with Codex she is a young East Asian woman with long dark brunette hair, drawn the way her style draws women, in a setting and composition from the style's own tradition (a Hiroshige dyke, a Delft tile vignette, van Gogh's Arles, Mucha's ornament with no place behind it), so the styles look distinct. Pixel art and anime, made by hand, still show the original chestnut-haired girl on an Amsterdam canal |
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
 | Forecast | Open-Meteo using KNMI HARMONIE (`models=knmi_seamless`) |
@@ -31,6 +31,7 @@ core/                  pure Kotlin/JVM, no Android
   ArtStyle, CustomStyle  a built-in Style or one the user made
   ScenePrompts           a picture's prompt: tools/scenes' texts, packaged
   StyleDesigner          OpenAI requests and answers for making a style
+  ChatGptSignIn          Sign in with ChatGPT: PKCE, tokens, plan models
 
 app/                   Android (Compose, Glance, WorkManager, DataStore)
   RefreshWorker          every 30 min while online, and on the widget's
@@ -51,10 +52,12 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
                          credits
   GalleryActivity        every picture of every style in a grid; tap one to see
                          it whole and swipe through the rest
-  StyleStudioActivity    makes a style: OpenAI key, chat, preview
+  StyleStudioActivity    makes a style: accounts, chat, preview
   StyleWorker            draws a made style's pictures in the background
   CustomStyleStore       made styles, in filesDir/styles/<slug>/
   ApiKeyStore            the OpenAI key, Keystore-encrypted, never backed up
+  ChatGptClient          the chat on the user's ChatGPT plan: sign-in on a
+                         127.0.0.1 LoopbackCallback, token refresh, Responses API
 
 tools/preview/         animated GIF previews of the live wallpaper (`run`)
 tools/scenes/          turns the pixel-art scene mock-ups into assets (`prepare.py`),
@@ -205,7 +208,9 @@ prompts, and `codex_scene.sh` the script, that made them with the Codex CLI.
 Besides the built-in styles, the user can make their own (**Make your own
 style**), on their own OpenAI account:
 
-1. **Key.** They paste an OpenAI API key. A free call (`GET /v1/models`)
+1. **Accounts.** The pictures need an OpenAI API key; the chat can run on it
+   or on the user's ChatGPT plan, through **Sign in with ChatGPT** (below).
+   They paste the key. A free call (`GET /v1/models`)
    checks it (a key restricted to the chat and image models is refused that
    call with a 403 but still accepted); then it's encrypted with a key that stays in the Android
    Keystore and saved in `noBackupFilesDir`, so it's never in a backup. It's
@@ -216,7 +221,10 @@ style**), on their own OpenAI account:
    and the Watercolour `style.txt` as an example of a description. Each
    answer is a reply and, once it knows enough, a proposal: a name, a
    summary, the style's description (its `style.txt`) and its particle
-   colours and widths, which are clamped to what the app can draw.
+   colours and widths, which are clamped to what the app can draw. Signed
+   in with ChatGPT, the same request goes to the Responses API instead, as
+   plan usage requires (`store: false`, `stream: true`, `instructions`, the
+   schema as `text.format`), on the plan's model.
 3. **Preview.** `gpt-image-2` redraws `partly-cloudy-mild` from its pixel-art
    scene (`/v1/images/edits`, WebP, 1024 × 1024), with the prompt
    `codex_scene.sh` would send. The user can draw it again, or keep chatting
@@ -231,6 +239,21 @@ style**), on their own OpenAI account:
    queues the next run for the rest. When all 30 are there the style is offered like the built-in ones,
    and the app switches to it. The main screen shows its progress, or why it
    stopped (key, credit, OpenAI's safety system, the network), with Continue.
+
+**Sign in with ChatGPT** ([OpenAI's guide](https://developers.openai.com/siwc/token-sharing-open-source))
+lets the chat run on a ChatGPT plan. Plan usage covers Responses API requests
+but not image generation, so the pictures can't move to the plan; the chat
+costs cents anyway, but the user needs no key until they draw. It's OAuth 2.0
+with PKCE: the first sign-in registers the app with the user's account
+(`dynamic_agent_client`) and returns a client ID used from then on, with a
+host ID made once per install. OpenAI only redirects to `127.0.0.1`, so
+`LoopbackCallback` listens on a free port while the browser is open, and
+answers with a page whose link (`weatherbuddy://studio`) brings the studio
+back. The ID token's issuer, audience, expiry and nonce are checked, not its
+signature: it comes straight from the token endpoint over TLS. Access tokens
+last an hour and are renewed before they run out; refresh tokens rotate.
+Without the plan scope (the user declined it) they stay signed in and the chat
+uses the key. A usage-limit error points to chatgpt.com/settings/usage.
 
 Core packages `codex-common.txt`, the scene lines from `anime/PROMPTS.md` and
 `watercolour/style.txt` from `tools/scenes`, so made styles are drawn with

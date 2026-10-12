@@ -33,11 +33,20 @@
             android:exported="false"
             android:parentActivityName=".ui.MainActivity" />
 
+        <!-- singleTask: the browser's link back after signing in returns to the studio under way. -->
         <activity
             android:name=".ui.StyleStudioActivity"
-            android:exported="false"
+            android:exported="true"
+            android:launchMode="singleTask"
             android:parentActivityName=".ui.MainActivity"
-            android:windowSoftInputMode="adjustResize" />
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="weatherbuddy" android:host="studio" />
+            </intent-filter>
+        </activity>
 
         <receiver
             android:name=".widget.WeatherWidgetReceiver"

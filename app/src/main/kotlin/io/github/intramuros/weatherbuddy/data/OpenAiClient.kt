@@ -7,17 +7,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.UUID
 
 /**
- * Talks to OpenAI for [StyleDesigner], with the user's own key. Network errors
- * are [IOException]s; OpenAI turning a request down is an [OpenAiException].
+ * Talks to OpenAI for [StyleDesigner] with the user's own key ([ChatGptClient] does the
+ * chat on a ChatGPT plan instead). Network errors are [IOException]s; OpenAI turning a
+ * request down is an [OpenAiException].
  */
 object OpenAiClient {
     private const val CONNECT_TIMEOUT_MS = 15_000
-    private const val CHAT_TIMEOUT_MS = 90_000
+    const val CHAT_TIMEOUT_MS = 90_000
 
     /** A carefully drawn picture can take a few minutes; StyleWorker counts on it taking at most this. */
     const val IMAGE_TIMEOUT_MS = 5 * 60_000
@@ -56,15 +58,29 @@ object OpenAiClient {
     }
 
     private suspend fun request(key: String, url: String, timeoutMs: Int, body: Pair<ByteArray, String>?): String =
+        send(url, "Bearer $key", timeoutMs, body) { it.bufferedReader().readText() }
+
+    /**
+     * Sends a request to OpenAI and reads the answer with [read]. [authorization] is the
+     * whole header (a key or a token, never logged); an error answer becomes what
+     * [error] makes of it.
+     */
+    internal suspend fun <T> send(
+        url: String,
+        authorization: String?,
+        timeoutMs: Int,
+        body: Pair<ByteArray, String>?,
+        error: (status: Int, body: String?, retryAfter: String?) -> IOException = StyleDesigner::error,
+        read: (InputStream) -> T,
+    ): T =
         withContext(Dispatchers.IO) {
             val connection = URL(url).openConnection() as HttpURLConnection
             try {
                 connection.connectTimeout = CONNECT_TIMEOUT_MS
                 connection.readTimeout = timeoutMs
-                // Past the app's HTTP cache: the key check must ask OpenAI.
+                // Past the app's HTTP cache: a key check must ask OpenAI.
                 connection.useCaches = false
-                // Never logged: it's the user's own key.
-                connection.setRequestProperty("Authorization", "Bearer $key")
+                if (authorization != null) connection.setRequestProperty("Authorization", authorization)
                 if (body != null) {
                     connection.requestMethod = "POST"
                     connection.doOutput = true
@@ -74,10 +90,10 @@ object OpenAiClient {
                 }
                 val code = connection.responseCode
                 if (code !in 200..299) {
-                    val error = connection.errorStream?.bufferedReader()?.use { it.readText() }
-                    throw StyleDesigner.error(code, error, connection.getHeaderField("Retry-After"))
+                    val answer = connection.errorStream?.bufferedReader()?.use { it.readText() }
+                    throw error(code, answer, connection.getHeaderField("Retry-After"))
                 }
-                connection.inputStream.bufferedReader().use { it.readText() }
+                connection.inputStream.use(read)
             } finally {
                 connection.disconnect()
             }

@@ -4,6 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -11,6 +12,7 @@ import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -21,9 +23,10 @@ import java.util.Locale
 /**
  * Designs a [CustomStyle] with the user: a short conversation with OpenAI's chat
  * model that ends in a proposed style, whose pictures OpenAI's image model then
- * draws from [ScenePrompts], each from its pixel-art scene. Both run on the
- * user's own API key. This is what is sent and how the answers are read; the
- * app does the sending.
+ * draws from [ScenePrompts], each from its pixel-art scene. The pictures need the
+ * user's own API key; the chat runs on it too, or on their ChatGPT plan through the
+ * Responses API ([responsesRequest], [ChatGptSignIn]). This is what is sent and how the
+ * answers are read; the app does the sending.
  */
 object StyleDesigner {
     const val CHAT_URL = "https://api.openai.com/v1/chat/completions"
@@ -153,7 +156,7 @@ object StyleDesigner {
         putJsonObject("response_format") {
             put("type", "json_schema")
             putJsonObject("json_schema") {
-                put("name", "style_designer_answer")
+                put("name", SCHEMA_NAME)
                 put("strict", true)
                 put("schema", answerSchema)
             }
@@ -163,10 +166,82 @@ object StyleDesigner {
     /** @throws OpenAiException if the answer isn't one. */
     fun parseChat(body: String): Turn {
         val choice = decode<ChatResponse>(body).choices.firstOrNull() ?: throw unexpected("no answer")
-        choice.message.refusal?.takeIf { it.isNotBlank() }?.let { return Turn(it, null, greeting(it)) }
-        val content = choice.message.content ?: throw unexpected("an empty answer")
-        val answer = decode<Answer>(content)
+        return turn(choice.message.content, choice.message.refusal)
+    }
+
+    /**
+     * The same request through the Responses API, as ChatGPT plan usage requires: not
+     * stored, streamed, and with the instructions as `instructions`. [reasoning] can be
+     * left out for a model that doesn't take it.
+     */
+    fun responsesRequest(conversation: List<Message>, model: String, reasoning: Boolean = true): String = buildJsonObject {
+        put("model", model)
+        put("instructions", instructions)
+        putJsonArray("input") {
+            for (message in conversation) add(json.encodeToJsonElement(Message.serializer(), message))
+        }
+        if (reasoning) putJsonObject("reasoning") { put("effort", "low") }
+        putJsonObject("text") {
+            putJsonObject("format") {
+                put("type", "json_schema")
+                put("name", SCHEMA_NAME)
+                put("strict", true)
+                put("schema", answerSchema)
+            }
+        }
+        put("store", false)
+        put("stream", true)
+    }.toString()
+
+    /**
+     * Reads a streamed Responses answer, given its server-sent events line by line.
+     * Only `response.completed` counts as an answer.
+     * @throws OpenAiException if it failed or stopped short.
+     */
+    fun parseResponsesStream(lines: Sequence<String>): Turn {
+        for (line in lines) {
+            if (!line.startsWith("data:")) continue
+            val event = try {
+                json.parseToJsonElement(line.removePrefix("data:").trim()).jsonObject
+            } catch (e: SerializationException) {
+                throw unexpected("an answer it couldn't read", e)
+            } catch (e: IllegalArgumentException) {
+                throw unexpected("an answer it couldn't read", e)
+            }
+            when ((event["type"] as? JsonPrimitive)?.contentOrNull) {
+                "response.completed" -> return completed(event["response"] as? JsonObject ?: throw unexpected("no answer"))
+                "response.failed" -> throw streamError((event["response"] as? JsonObject)?.get("error") as? JsonObject)
+                "response.incomplete" -> throw unexpected("an unfinished answer")
+                "error" -> throw streamError((event["error"] as? JsonObject) ?: event)
+            }
+        }
+        throw unexpected("an answer that stopped short")
+    }
+
+    /** The answer in a completed response: its message's text, or a refusal. */
+    private fun completed(response: JsonObject): Turn {
+        val parts = (response["output"] as? JsonArray).orEmpty()
+            .mapNotNull { it as? JsonObject }
+            .filter { (it["type"] as? JsonPrimitive)?.contentOrNull == "message" }
+            .flatMap { (it["content"] as? JsonArray).orEmpty().mapNotNull { part -> part as? JsonObject } }
+        fun text(type: String, field: String) = parts
+            .filter { (it["type"] as? JsonPrimitive)?.contentOrNull == type }
+            .mapNotNull { (it[field] as? JsonPrimitive)?.contentOrNull }
+            .joinToString("")
+            .takeIf { it.isNotEmpty() }
+        return turn(text("output_text", "text"), text("refusal", "refusal"))
+    }
+
+    private fun turn(content: String?, refusal: String?): Turn {
+        refusal?.takeIf { it.isNotBlank() }?.let { return Turn(it, null, greeting(it)) }
+        val answer = decode<Answer>(content ?: throw unexpected("an empty answer"))
         return Turn(answer.reply.trim(), answer.proposal, Message(Role.ASSISTANT, content))
+    }
+
+    private fun streamError(error: JsonObject?): OpenAiException {
+        val code = (error?.get("code") as? JsonPrimitive)?.contentOrNull
+        val message = (error?.get("message") as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() } ?: "OpenAI couldn't answer"
+        return OpenAiException(problem(status = null, code), message, code = code)
     }
 
     /** The form fields of an image edit; the pictures go with them as [IMAGE_FIELD] files. */
@@ -198,24 +273,36 @@ object StyleDesigner {
     fun error(status: Int, body: String?, retryAfter: String?): OpenAiException {
         val error = body?.let {
             try {
-                json.decodeFromString<ErrorResponse>(it).error
+                json.decodeFromString<ErrorResponse>(it)
             } catch (_: SerializationException) {
                 null
             } catch (_: IllegalArgumentException) {
                 null
             }
         }
-        val code = (error?.code as? JsonPrimitive)?.contentOrNull
-        val problem = when {
-            status == 401 -> OpenAiException.Problem.KEY
-            code == "insufficient_quota" || code == "billing_hard_limit_reached" -> OpenAiException.Problem.QUOTA
-            status == 429 -> OpenAiException.Problem.BUSY
-            code == "moderation_blocked" || code == "content_policy_violation" -> OpenAiException.Problem.REJECTED
-            status >= 500 -> OpenAiException.Problem.SERVER
-            else -> OpenAiException.Problem.OTHER
-        }
-        val message = error?.message?.takeIf { it.isNotBlank() } ?: "OpenAI answered HTTP $status"
-        return OpenAiException(problem, message, retryAfter?.trim()?.toLongOrNull(), status = status)
+        val code = (error?.error?.code as? JsonPrimitive)?.contentOrNull
+        val message = (error?.error?.message ?: error?.detail)?.takeIf { it.isNotBlank() } ?: "OpenAI answered HTTP $status"
+        return OpenAiException(
+            problem(status, code),
+            message,
+            retryAfter?.trim()?.toLongOrNull(),
+            status = status,
+            code = code,
+            param = error?.error?.param,
+        )
+    }
+
+    private fun problem(status: Int?, code: String?): OpenAiException.Problem = when {
+        code == "subscription_sharing_usage_limit_exceeded" -> OpenAiException.Problem.PLAN_LIMIT
+        code == "subscription_sharing_user_not_eligible" -> OpenAiException.Problem.NOT_ELIGIBLE
+        status == 401 || code == "subscription_sharing_invalid_user" -> OpenAiException.Problem.KEY
+        code == "insufficient_quota" || code == "billing_hard_limit_reached" -> OpenAiException.Problem.QUOTA
+        status == 429 -> OpenAiException.Problem.BUSY
+        code == "moderation_blocked" || code == "content_policy_violation" -> OpenAiException.Problem.REJECTED
+        code == "subscription_sharing_usage_unavailable" || code == "subscription_sharing_user_unavailable" ->
+            OpenAiException.Problem.SERVER
+        status != null && status >= 500 -> OpenAiException.Problem.SERVER
+        else -> OpenAiException.Problem.OTHER
     }
 
     private inline fun <reified T> decode(body: String): T =
@@ -248,11 +335,14 @@ object StyleDesigner {
     @Serializable
     private data class ImageData(@SerialName("b64_json") val b64Json: String? = null)
 
+    /** OpenAI's usual error, or `detail` when plan usage turns a request away before answering. */
     @Serializable
-    private data class ErrorResponse(val error: ErrorBody)
+    private data class ErrorResponse(val error: ErrorBody? = null, val detail: String? = null)
 
     @Serializable
-    private data class ErrorBody(val message: String? = null, val code: JsonElement? = null)
+    private data class ErrorBody(val message: String? = null, val code: JsonElement? = null, val param: String? = null)
+
+    private const val SCHEMA_NAME = "style_designer_answer"
 
     /** Strict, so every answer has this shape. */
     private val answerSchema: JsonObject by lazy {
@@ -335,6 +425,10 @@ class OpenAiException(
     cause: Throwable? = null,
     /** The HTTP status OpenAI answered with, if it answered. */
     val status: Int? = null,
+    /** OpenAI's error code, e.g. `insufficient_quota`. */
+    val code: String? = null,
+    /** The request field OpenAI objected to, if it said. */
+    val param: String? = null,
 ) : IOException(message, cause) {
     enum class Problem {
         /** The key is wrong or has been revoked. */
@@ -351,6 +445,12 @@ class OpenAiException(
 
         /** OpenAI had trouble; trying again later may work. */
         SERVER,
+
+        /** The app has used its share of the user's ChatGPT plan for now. */
+        PLAN_LIMIT,
+
+        /** The user's ChatGPT plan can't be used in this app. */
+        NOT_ELIGIBLE,
 
         /** Anything else, such as a model the account may not use yet; the message says why. */
         OTHER,

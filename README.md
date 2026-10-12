@@ -12,9 +12,11 @@ or **Pop art**; each has one finished picture per kind of weather, and
 
 You can also **make your own style**: describe it in a short chat, look at a
 preview, and the app draws its 30 pictures on your phone with OpenAI's models.
-This needs your own [OpenAI API key](https://platform.openai.com/api-keys),
-and OpenAI charges your account for the chat and the pictures. The key stays
-on your phone (encrypted, not backed up) and is only sent to OpenAI.
+Drawing needs your own [OpenAI API key](https://platform.openai.com/api-keys),
+and OpenAI charges your account for each picture. The chat can run on your
+ChatGPT plan instead: **Sign in with ChatGPT** under Accounts (OpenAI doesn't
+let apps draw pictures on a plan). The key and sign-in stay on your phone
+(encrypted, not backed up) and are only sent to OpenAI.
 
 Weather data comes from [Open-Meteo](https://open-meteo.com) (KNMI HARMONIE
 model). [Buienradar](https://www.buienradar.nl) supplies the local rain prediction

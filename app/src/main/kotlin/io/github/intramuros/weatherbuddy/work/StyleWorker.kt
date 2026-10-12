@@ -160,7 +160,9 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 Log.w(TAG, "${picture.slug}: ${e.problem}")
                 last = Failure(problemOf(e), e.message.orEmpty())
                 waitSeconds = when (e.problem) {
-                    OpenAiException.Problem.KEY, OpenAiException.Problem.QUOTA, OpenAiException.Problem.OTHER -> return Outcome.Failed(last)
+                    OpenAiException.Problem.KEY, OpenAiException.Problem.QUOTA, OpenAiException.Problem.OTHER,
+                    OpenAiException.Problem.PLAN_LIMIT, OpenAiException.Problem.NOT_ELIGIBLE,
+                    -> return Outcome.Failed(last)
                     OpenAiException.Problem.BUSY -> e.retryAfterSeconds ?: RETRY_SECONDS
                     OpenAiException.Problem.REJECTED, OpenAiException.Problem.SERVER -> RETRY_SECONDS
                 }
@@ -198,7 +200,8 @@ class StyleWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
         OpenAiException.Problem.QUOTA -> StyleProblem.QUOTA
         OpenAiException.Problem.REJECTED -> StyleProblem.REJECTED
         OpenAiException.Problem.BUSY, OpenAiException.Problem.SERVER -> StyleProblem.NETWORK
-        OpenAiException.Problem.OTHER -> StyleProblem.OTHER
+        // Plan usage is only for the chat; the pictures are drawn on the key.
+        OpenAiException.Problem.OTHER, OpenAiException.Problem.PLAN_LIMIT, OpenAiException.Problem.NOT_ELIGIBLE -> StyleProblem.OTHER
     }
 
     companion object {

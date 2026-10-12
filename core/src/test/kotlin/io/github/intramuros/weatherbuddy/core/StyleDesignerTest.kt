@@ -151,6 +151,107 @@ class StyleDesignerTest {
         assertFailsWith<OpenAiException> { StyleDesigner.parseImage("""{"data": [{"b64_json": "*not base64*"}]}""") }
     }
 
+    @Test
+    fun asksThroughTheResponsesApiAsPlanUsageRequires() {
+        val conversation = listOf(
+            StyleDesigner.greeting("What would you like?"),
+            StyleDesigner.Message(StyleDesigner.Role.USER, "Stained glass"),
+        )
+        val request = Json.parseToJsonElement(StyleDesigner.responsesRequest(conversation, "gpt-6.1-sol")).jsonObject
+        assertEquals("gpt-6.1-sol", request["model"]!!.jsonPrimitive.content)
+        assertEquals(false, request["store"]!!.jsonPrimitive.boolean)
+        assertEquals(true, request["stream"]!!.jsonPrimitive.boolean)
+        assertTrue(ScenePrompts.common in request["instructions"]!!.jsonPrimitive.content)
+        val roles = request["input"]!!.jsonArray.map { it.jsonObject["role"]!!.jsonPrimitive.content }
+        assertEquals(listOf("assistant", "user"), roles, "no system messages: plan usage rejects them")
+        val format = request["text"]!!.jsonObject["format"]!!.jsonObject
+        assertEquals("json_schema", format["type"]!!.jsonPrimitive.content)
+        assertTrue(format["strict"]!!.jsonPrimitive.boolean)
+        assertEquals("low", request["reasoning"]!!.jsonObject["effort"]!!.jsonPrimitive.content)
+        // Parameters plan usage refuses.
+        for (refused in listOf("temperature", "max_output_tokens", "previous_response_id", "metadata", "user", "background")) {
+            assertNull(request[refused], refused)
+        }
+        assertNull(Json.parseToJsonElement(StyleDesigner.responsesRequest(conversation, "m", reasoning = false)).jsonObject["reasoning"])
+    }
+
+    /** A streamed answer as server-sent events, ending with [last]. */
+    private fun stream(last: String) = sequenceOf(
+        "event: response.created",
+        """data: {"type":"response.created","response":{"id":"resp_1","status":"in_progress"}}""",
+        "",
+        "event: response.output_text.delta",
+        """data: {"type":"response.output_text.delta","delta":"{\"reply\""}""",
+        "",
+        "event: ${Json.parseToJsonElement(last).jsonObject["type"]!!.jsonPrimitive.content}",
+        "data: $last",
+        "",
+    )
+
+    private fun completed(vararg content: String) = buildJsonObject {
+        put("type", "response.completed")
+        put("response", buildJsonObject {
+            put("status", "completed")
+            put("output", buildJsonArray {
+                add(buildJsonObject { put("type", "reasoning") })
+                add(buildJsonObject {
+                    put("type", "message")
+                    put("role", "assistant")
+                    put("content", buildJsonArray { content.forEach { add(Json.parseToJsonElement(it)) } })
+                })
+            })
+        })
+    }.toString()
+
+    @Test
+    fun readsAStreamedAnswer() {
+        val answer = """{"reply":"Here it is.","proposal":$proposal}"""
+        val text = buildJsonObject { put("type", "output_text"); put("text", answer) }.toString()
+        val turn = StyleDesigner.parseResponsesStream(stream(completed(text)))
+        assertEquals("Here it is.", turn.reply)
+        assertEquals("Stained glass", turn.proposal?.name)
+        assertEquals(StyleDesigner.Message(StyleDesigner.Role.ASSISTANT, answer), turn.message)
+
+        val refusal = StyleDesigner.parseResponsesStream(stream(completed("""{"type":"refusal","refusal":"I can't help with that."}""")))
+        assertEquals("I can't help with that.", refusal.reply)
+        assertNull(refusal.proposal)
+    }
+
+    @Test
+    fun aStreamThatFailsSaysWhy() {
+        fun problem(vararg lines: String) = assertFailsWith<OpenAiException> { StyleDesigner.parseResponsesStream(lines.asSequence()) }
+        val limit = problem(
+            """data: {"type":"response.failed","response":{"status":"failed","error":{"code":"subscription_sharing_usage_limit_exceeded","message":"Limit reached."}}}""",
+        )
+        assertEquals(OpenAiException.Problem.PLAN_LIMIT, limit.problem)
+        assertEquals("Limit reached.", limit.message)
+        assertEquals(
+            OpenAiException.Problem.SERVER,
+            problem("""data: {"type":"error","code":"subscription_sharing_usage_unavailable","message":"Try later."}""").problem,
+        )
+        assertEquals(OpenAiException.Problem.SERVER, problem("""data: {"type":"response.incomplete","response":{}}""").problem)
+        assertEquals(OpenAiException.Problem.SERVER, problem("""data: {"type":"response.created","response":{}}""").problem, "cut off")
+        assertEquals(OpenAiException.Problem.SERVER, problem("data: {not json").problem)
+    }
+
+    @Test
+    fun tellsWhatWentWrongWithThePlan() {
+        fun answered(status: Int, body: String) = StyleDesigner.error(status, body, null)
+        assertEquals(OpenAiException.Problem.PLAN_LIMIT, answered(429, error("subscription_sharing_usage_limit_exceeded")).problem)
+        assertEquals(OpenAiException.Problem.NOT_ELIGIBLE, answered(403, error("subscription_sharing_user_not_eligible")).problem)
+        assertEquals(OpenAiException.Problem.SERVER, answered(503, error("subscription_sharing_usage_unavailable")).problem)
+        assertEquals(OpenAiException.Problem.KEY, answered(401, error("subscription_sharing_invalid_user")).problem)
+
+        val unsupported = answered(400, """{"error":{"message":"Not with plans.","code":"subscription_sharing_unsupported_capability","param":"reasoning"}}""")
+        assertEquals("subscription_sharing_unsupported_capability", unsupported.code)
+        assertEquals("reasoning", unsupported.param)
+
+        // Turned away before answering: no usual error, just a detail.
+        val region = answered(403, """{"detail":"Not available in your region."}""")
+        assertEquals(OpenAiException.Problem.OTHER, region.problem)
+        assertEquals("Not available in your region.", region.message)
+    }
+
     private fun error(code: String?, message: String = "Something happened.") = buildJsonObject {
         put("error", buildJsonObject {
             put("message", message)

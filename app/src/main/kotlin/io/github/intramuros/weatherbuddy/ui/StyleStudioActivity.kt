@@ -1,10 +1,13 @@
 package io.github.intramuros.weatherbuddy.ui
 
 import android.app.Application
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.StringRes
@@ -66,6 +69,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -76,13 +80,19 @@ import io.github.intramuros.weatherbuddy.core.ImageQuality
 import io.github.intramuros.weatherbuddy.core.OpenAiException
 import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.ScenePrompts
+import io.github.intramuros.weatherbuddy.core.SignInException
 import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.core.StyleDesigner
 import io.github.intramuros.weatherbuddy.data.ApiKeyStore
+import io.github.intramuros.weatherbuddy.data.ChatGptAccount
+import io.github.intramuros.weatherbuddy.data.ChatGptAccountStore
+import io.github.intramuros.weatherbuddy.data.ChatGptClient
 import io.github.intramuros.weatherbuddy.data.CustomStyleStore
+import io.github.intramuros.weatherbuddy.data.LoopbackCallback
 import io.github.intramuros.weatherbuddy.data.OpenAiClient
 import io.github.intramuros.weatherbuddy.work.StyleWorker
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -90,12 +100,13 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.net.SocketTimeoutException
 import java.security.GeneralSecurityException
 
 /**
- * Makes a new style: the user describes it to the designer ([StyleDesigner]) on their
- * own OpenAI key, has a preview drawn, and once they like it, [StyleWorker] draws the
- * rest in the background.
+ * Makes a new style: the user describes it to the designer ([StyleDesigner]), on their
+ * ChatGPT plan or their own OpenAI key, has a preview drawn on the key, and once they
+ * like it, [StyleWorker] draws the rest in the background.
  */
 class StyleStudioActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -120,11 +131,22 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
         class Preview(val proposal: StyleDesigner.Proposal, val quality: ImageQuality, val webp: ByteArray, val bitmap: Bitmap) : Item
     }
 
+    /** What the user pays with: an API key, and perhaps their ChatGPT plan for the chat. */
+    data class Accounts(val hasKey: Boolean, val chatGpt: ChatGptAccount) {
+        val canChat: Boolean get() = hasKey || chatGpt.chatsOnPlan
+    }
+
     data class State(
-        /** `null` until the saved key has been looked up. */
-        val needsKey: Boolean? = null,
+        /** `null` until the saved key and sign-in have been looked up. */
+        val accounts: Accounts? = null,
+        /** Shows the accounts instead of the conversation. */
+        val showAccounts: Boolean = false,
+        /** Why the accounts are shown, such as drawing needing a key. */
+        val accountsNote: String? = null,
         val checkingKey: Boolean = false,
         val keyError: String? = null,
+        val signingIn: Boolean = false,
+        val signInError: String? = null,
         val items: List<Item> = emptyList(),
         val thinking: Boolean = false,
         val drawing: Boolean = false,
@@ -136,11 +158,16 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
     )
 
     private val keys = ApiKeyStore(app)
+    private val chatGpt = ChatGptAccountStore(app)
     private var key: String? = null
     private val conversation = mutableListOf<StyleDesigner.Message>()
+    private var signIn: Job? = null
 
     /** Repeats the request that last failed. */
     private var again: (() -> Unit)? = null
+
+    /** What the accounts were shown for, done once they allow it. */
+    private var afterAccounts: (() -> Unit)? = null
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
@@ -150,9 +177,27 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
         conversation += StyleDesigner.greeting(greeting)
         _state.update { it.copy(items = listOf(Item.Said(fromUser = false, greeting))) }
         viewModelScope.launch {
-            key = withContext(Dispatchers.IO) { keys.get() }
-            _state.update { it.copy(needsKey = key == null) }
+            val accounts = loadAccounts()
+            _state.update { it.copy(showAccounts = !accounts.canChat) }
         }
+    }
+
+    private suspend fun loadAccounts(): Accounts {
+        val accounts = withContext(Dispatchers.IO) {
+            key = keys.get()
+            Accounts(hasKey = key != null, chatGpt = chatGpt.load())
+        }
+        _state.update { it.copy(accounts = accounts) }
+        return accounts
+    }
+
+    fun showAccounts() = _state.update { it.copy(showAccounts = true, accountsNote = null) }
+
+    /** Back to the conversation, if there's a way to chat; then does what the accounts were shown for. */
+    fun closeAccounts() {
+        if (state.value.accounts?.canChat != true) return
+        _state.update { it.copy(showAccounts = false, accountsNote = null, keyError = null, signInError = null) }
+        afterAccounts?.also { afterAccounts = null }?.invoke()
     }
 
     fun saveKey(text: String) {
@@ -163,7 +208,6 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
             val error = try {
                 if (OpenAiClient.accepts(candidate)) {
                     withContext(Dispatchers.IO) { keys.set(candidate) }
-                    key = candidate
                     null
                 } else {
                     app.getString(R.string.key_rejected)
@@ -173,16 +217,67 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
             } catch (e: GeneralSecurityException) {
                 e.message ?: e.javaClass.simpleName
             }
-            _state.update { it.copy(checkingKey = false, keyError = error, needsKey = error != null) }
+            loadAccounts()
+            _state.update { it.copy(checkingKey = false, keyError = error) }
+            if (error == null) closeAccounts()
         }
     }
 
-    /** Forgets the saved key, to enter another. */
-    fun changeKey() {
+    fun removeKey() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) { keys.clear() }
-            key = null
-            _state.update { it.copy(needsKey = true, keyError = null) }
+            loadAccounts()
+        }
+    }
+
+    /**
+     * Signs in with ChatGPT in the browser. [consent] asks again for every permission,
+     * for a user who didn't let the app use their plan the first time.
+     */
+    fun signIn(consent: Boolean = false) {
+        if (state.value.signingIn) return
+        _state.update { it.copy(signingIn = true, signInError = null) }
+        signIn = viewModelScope.launch {
+            val page = LoopbackCallback.page(
+                title = app.getString(R.string.app_name),
+                text = app.getString(R.string.chatgpt_page_text),
+                appLink = APP_LINK,
+                linkText = app.getString(R.string.chatgpt_page_link),
+            )
+            val error = try {
+                val account = ChatGptClient.signIn(chatGpt, consent, page) { url ->
+                    app.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+                if (account == null) app.getString(R.string.chatgpt_denied) else null
+            } catch (_: ActivityNotFoundException) {
+                app.getString(R.string.chatgpt_no_browser)
+            } catch (_: SocketTimeoutException) {
+                app.getString(R.string.chatgpt_timeout)
+            } catch (e: SignInException) {
+                app.getString(R.string.chatgpt_failed, e.message)
+            } catch (e: IOException) {
+                describe(e)
+            } catch (e: GeneralSecurityException) {
+                app.getString(R.string.chatgpt_failed, e.message ?: e.javaClass.simpleName)
+            } finally {
+                _state.update { it.copy(signingIn = false) }
+            }
+            val accounts = loadAccounts()
+            _state.update { it.copy(signInError = error) }
+            // Signed in to chat on the plan: straight on, unless drawing is waiting for a key.
+            if (error == null && accounts.chatGpt.chatsOnPlan && state.value.accountsNote == null) closeAccounts()
+        }
+    }
+
+    fun cancelSignIn() {
+        signIn?.cancel()
+        _state.update { it.copy(signingIn = false) }
+    }
+
+    fun signOut() {
+        viewModelScope.launch {
+            ChatGptClient.signOut(chatGpt)
+            loadAccounts()
         }
     }
 
@@ -194,17 +289,26 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
         answer()
     }
 
+    /** Asks the designer, on the user's plan if they signed in for it, otherwise on their key. */
     private fun answer() {
-        val key = key ?: return
+        val accounts = state.value.accounts ?: return
+        val onPlan = accounts.chatGpt.chatsOnPlan
+        val key = key
+        if (!onPlan && key == null) {
+            afterAccounts = { answer() }
+            _state.update { it.copy(showAccounts = true) }
+            return
+        }
         _state.update { it.copy(thinking = true, error = null) }
         viewModelScope.launch {
             try {
-                val turn = OpenAiClient.chat(key, conversation.toList())
+                val history = conversation.toList()
+                val turn = if (onPlan) ChatGptClient.chat(chatGpt, history) else OpenAiClient.chat(key!!, history)
                 conversation += turn.message
                 val said = listOfNotNull(Item.Said(fromUser = false, turn.reply), turn.proposal?.let { Item.Proposed(it) })
                 _state.update { it.copy(items = it.items + said) }
             } catch (e: IOException) {
-                fail(e) { answer() }
+                fail(e, onPlan) { answer() }
             } finally {
                 _state.update { it.copy(thinking = false) }
             }
@@ -215,8 +319,14 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
 
     /** Draws [CustomStyle.REFERENCE] in the proposed style, the picture all the others will copy. */
     fun drawPreview(proposal: StyleDesigner.Proposal) {
-        val key = key ?: return
         if (state.value.drawing) return
+        val key = key
+        if (key == null) {
+            // OpenAI doesn't let apps draw on a ChatGPT plan.
+            afterAccounts = { drawPreview(proposal) }
+            _state.update { it.copy(showAccounts = true, accountsNote = app.getString(R.string.studio_key_for_drawing)) }
+            return
+        }
         val quality = state.value.quality
         _state.update { it.copy(drawing = true, error = null) }
         viewModelScope.launch {
@@ -232,7 +342,7 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
                     ?: throw OpenAiException(OpenAiException.Problem.SERVER, "OpenAI sent a broken picture")
                 _state.update { it.copy(items = it.items + Item.Preview(proposal, quality, webp, bitmap)) }
             } catch (e: IOException) {
-                fail(e) { drawPreview(proposal) }
+                fail(e, onPlan = false) { drawPreview(proposal) }
             } finally {
                 _state.update { it.copy(drawing = false) }
             }
@@ -251,7 +361,7 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
                     store.savePicture(style, CustomStyle.REFERENCE, preview.webp)
                 }
             } catch (e: IOException) {
-                fail(e) { make(preview) }
+                fail(e, onPlan = false) { make(preview) }
                 return@launch
             }
             StyleWorker.start(app, style)
@@ -265,22 +375,39 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
         request()
     }
 
-    private fun fail(e: IOException, request: () -> Unit) {
+    /** [onPlan]: whether the request ran on the ChatGPT plan rather than the key. */
+    private fun fail(e: IOException, onPlan: Boolean, request: () -> Unit) {
         again = request
-        _state.update { it.copy(error = describe(e)) }
-        // Asks for a new key; the failed request can be tried again with it.
+        _state.update { it.copy(error = describe(e, onPlan)) }
         if (e is OpenAiException && e.problem == OpenAiException.Problem.KEY) {
-            _state.update { it.copy(needsKey = true, keyError = describe(e)) }
+            // A new key or sign-in, after which the failed request can be tried again.
+            viewModelScope.launch {
+                loadAccounts()
+                _state.update {
+                    if (onPlan) {
+                        it.copy(showAccounts = true, signInError = describe(e, onPlan))
+                    } else {
+                        it.copy(showAccounts = true, keyError = describe(e, onPlan))
+                    }
+                }
+            }
         }
     }
 
-    private fun describe(e: IOException): String = when ((e as? OpenAiException)?.problem) {
+    private fun describe(e: IOException, onPlan: Boolean = false): String = when ((e as? OpenAiException)?.problem) {
         null -> app.getString(R.string.studio_error_network)
-        OpenAiException.Problem.KEY -> app.getString(R.string.key_rejected)
+        OpenAiException.Problem.KEY -> app.getString(if (onPlan) R.string.chatgpt_again else R.string.key_rejected)
         OpenAiException.Problem.QUOTA -> app.getString(R.string.studio_error_quota)
         OpenAiException.Problem.BUSY -> app.getString(R.string.studio_error_busy)
         OpenAiException.Problem.REJECTED -> app.getString(R.string.studio_error_rejected)
+        OpenAiException.Problem.PLAN_LIMIT -> app.getString(R.string.studio_error_plan_limit)
+        OpenAiException.Problem.NOT_ELIGIBLE -> app.getString(R.string.studio_error_not_eligible)
         OpenAiException.Problem.SERVER, OpenAiException.Problem.OTHER -> app.getString(R.string.studio_error_other, e.message)
+    }
+
+    companion object {
+        /** Brings the user back from the browser after signing in (the manifest's intent filter). */
+        const val APP_LINK = "weatherbuddy://studio"
     }
 }
 
@@ -288,6 +415,9 @@ class StyleStudioViewModel(private val app: Application) : AndroidViewModel(app)
 private fun StudioScreen(onBack: () -> Unit, vm: StyleStudioViewModel = viewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.made) { if (state.made) onBack() }
+    val accounts = state.accounts
+    // Back from the accounts returns to the conversation, if there's a way to chat.
+    BackHandler(enabled = state.showAccounts && accounts?.canChat == true) { vm.closeAccounts() }
     Scaffold { padding ->
         Column(
             Modifier
@@ -301,53 +431,109 @@ private fun StudioScreen(onBack: () -> Unit, vm: StyleStudioViewModel = viewMode
                     Icon(painterResource(R.drawable.ic_back), contentDescription = stringResource(R.string.gallery_back))
                 }
                 Text(stringResource(R.string.studio_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                if (state.needsKey == false) {
-                    TextButton(onClick = vm::changeKey) { Text(stringResource(R.string.studio_change_key)) }
+                if (accounts != null && !state.showAccounts) {
+                    TextButton(onClick = vm::showAccounts) { Text(stringResource(R.string.studio_accounts)) }
                 }
             }
-            when (state.needsKey) {
-                null -> Unit
-                true -> KeyForm(state, onSave = vm::saveKey)
-                false -> Conversation(state, vm)
+            when {
+                accounts == null -> Unit
+                state.showAccounts -> AccountsForm(state, accounts, vm)
+                else -> Conversation(state, vm)
             }
         }
     }
 }
 
+/** How the user pays: their ChatGPT plan for the chat, and an API key for the pictures. */
 @Composable
-private fun KeyForm(state: StyleStudioViewModel.State, onSave: (String) -> Unit) {
-    var text by rememberSaveable { mutableStateOf("") }
-    val getKey = stringResource(R.string.key_get)
+private fun AccountsForm(state: StyleStudioViewModel.State, accounts: StyleStudioViewModel.Accounts, vm: StyleStudioViewModel) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         modifier = Modifier
             .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
-        Text(stringResource(R.string.key_title), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.key_text), style = MaterialTheme.typography.bodyMedium)
-        Text(
-            buildAnnotatedString { withLink(LinkAnnotation.Url("https://platform.openai.com/api-keys")) { append(getKey) } },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            label = { Text(stringResource(R.string.key_label)) },
-            singleLine = true,
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { onSave(text) }),
-            isError = state.keyError != null,
-            supportingText = state.keyError?.let { error -> { Text(error) } },
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Button(
-            onClick = { onSave(text) },
-            enabled = !state.checkingKey && text.isNotBlank(),
-            modifier = Modifier.align(Alignment.End),
-        ) { Text(stringResource(if (state.checkingKey) R.string.key_checking else R.string.key_save)) }
+        state.accountsNote?.let { Text(it, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.primary) }
+        ChatGptCard(state, accounts.chatGpt, vm)
+        KeyCard(state, accounts.hasKey, onSave = vm::saveKey, onRemove = vm::removeKey)
+        Text(stringResource(R.string.accounts_privacy), style = MaterialTheme.typography.bodySmall)
+        if (accounts.canChat) {
+            Button(onClick = vm::closeAccounts, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.studio_continue)) }
+        }
+    }
+}
+
+@Composable
+private fun ChatGptCard(state: StyleStudioViewModel.State, account: ChatGptAccount, vm: StyleStudioViewModel) {
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.chatgpt_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.chatgpt_text), style = MaterialTheme.typography.bodyMedium)
+            val who = account.email ?: stringResource(R.string.chatgpt_account_unknown)
+            when {
+                state.signingIn -> {
+                    Working(stringResource(R.string.chatgpt_waiting))
+                    TextButton(onClick = vm::cancelSignIn, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.cancel)) }
+                }
+                account.signedIn -> {
+                    Text(
+                        stringResource(if (account.planUsage) R.string.chatgpt_signed_in else R.string.chatgpt_signed_in_no_plan, who),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+                        TextButton(onClick = vm::signOut) { Text(stringResource(R.string.chatgpt_sign_out)) }
+                        if (!account.planUsage) {
+                            Button(onClick = { vm.signIn(consent = true) }) { Text(stringResource(R.string.chatgpt_allow_plan)) }
+                        }
+                    }
+                }
+                else -> Button(onClick = { vm.signIn() }, modifier = Modifier.align(Alignment.End)) {
+                    Text(stringResource(R.string.chatgpt_sign_in))
+                }
+            }
+            state.signInError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+        }
+    }
+}
+
+@Composable
+private fun KeyCard(state: StyleStudioViewModel.State, hasKey: Boolean, onSave: (String) -> Unit, onRemove: () -> Unit) {
+    var text by rememberSaveable { mutableStateOf("") }
+    val getKey = stringResource(R.string.key_get)
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.key_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.key_text), style = MaterialTheme.typography.bodyMedium)
+            if (hasKey) {
+                Text(stringResource(R.string.key_saved), style = MaterialTheme.typography.bodyMedium)
+                // OpenAI turned the saved key down: removing it lets the user enter another.
+                state.keyError?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+                TextButton(onClick = onRemove, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.key_remove)) }
+            } else {
+                Text(
+                    buildAnnotatedString { withLink(LinkAnnotation.Url("https://platform.openai.com/api-keys")) { append(getKey) } },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(stringResource(R.string.key_label)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { onSave(text) }),
+                    isError = state.keyError != null,
+                    supportingText = state.keyError?.let { error -> { Text(error) } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Button(
+                    onClick = { onSave(text) },
+                    enabled = !state.checkingKey && text.isNotBlank(),
+                    modifier = Modifier.align(Alignment.End),
+                ) { Text(stringResource(if (state.checkingKey) R.string.key_checking else R.string.key_save)) }
+            }
+        }
     }
 }
 
