@@ -175,6 +175,11 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
     val mapTimeZone = state.snapshot?.takeIf { it.location == location }?.conditions?.timeZone
     // The made style the user asked to delete, until they confirm.
     var deleting by remember { mutableStateOf<CustomStyle?>(null) }
+    // Coming back to the app, which may have stayed open in the background, counts as opening it.
+    LifecycleStartEffect(Unit) {
+        vm.onStart()
+        onStopOrDispose {}
+    }
     LifecycleResumeEffect(Unit) {
         vm.checkLiveWallpaper()
         onPauseOrDispose {}

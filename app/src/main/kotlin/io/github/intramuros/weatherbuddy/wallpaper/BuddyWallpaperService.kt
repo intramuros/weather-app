@@ -9,6 +9,7 @@ import android.os.PowerManager
 import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
 import android.view.SurfaceHolder
+import io.github.intramuros.weatherbuddy.LocationFollower
 import io.github.intramuros.weatherbuddy.WeatherUpdates
 import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.Style
@@ -23,7 +24,8 @@ import kotlinx.coroutines.withContext
 /**
  * The animated wallpaper. Draws only while visible, at the style's frame rate
  * (lower in battery saver), and picks up new weather as soon as the
- * background refresh has it.
+ * background refresh has it. Coming into view, it follows the phone to a new
+ * place.
  */
 class BuddyWallpaperService : WallpaperService() {
     override fun onCreateEngine(): Engine = BuddyEngine()
@@ -68,7 +70,20 @@ class BuddyWallpaperService : WallpaperService() {
             this.visible = visible
             val choreographer = Choreographer.getInstance()
             choreographer.removeFrameCallback(this)
-            if (visible) choreographer.postFrameCallback(this)
+            if (visible) {
+                choreographer.postFrameCallback(this)
+                followPhone()
+            }
+        }
+
+        /**
+         * Android counts the wallpaper on screen as the app in use, so it says where the phone is.
+         * A new place's weather comes in a refresh of its own, which outlives this engine.
+         */
+        private fun followPhone() = scope.launch {
+            if (LocationFollower.follow(this@BuddyWallpaperService, LocationFollower.WALLPAPER_GAP_MS)) {
+                RefreshWorker.runOnce(this@BuddyWallpaperService)
+            }
         }
 
         override fun onSurfaceDestroyed(holder: SurfaceHolder) {

@@ -10,6 +10,11 @@ Nouveau posters), **Van Gogh**, **Watercolour**, **Paper cut**, **Art Deco**
 or **Pop art**; each has one finished picture per kind of weather, and
 **Browse all pictures** shows them all.
 
+With **Use my location**, the weather follows your phone. It looks again
+each time you open the app, when the animated wallpaper comes into view (at
+most every 15 minutes) and when you tap the widget's refresh button; it
+never asks for your location in the background.
+
 You can also **make your own style**: describe it in a short chat, look at a
 preview, and the app draws its 30 pictures on your phone with OpenAI's models.
 This needs your own [OpenAI API key](https://platform.openai.com/api-keys),

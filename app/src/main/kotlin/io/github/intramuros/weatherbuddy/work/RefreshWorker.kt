@@ -10,10 +10,12 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.await
 import androidx.work.workDataOf
+import io.github.intramuros.weatherbuddy.LocationFollower
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
 import io.github.intramuros.weatherbuddy.core.RefreshSchedule
 import io.github.intramuros.weatherbuddy.data.Location
+import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import kotlinx.coroutines.flow.Flow
@@ -22,6 +24,12 @@ import java.util.concurrent.TimeUnit
 
 class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        val tapped = inputData.getBoolean(KEY_TAPPED, false)
+        // Android counts a tap on the widget as using the app (from Android 11 on), so it may say where the phone is.
+        // Where it doesn't, asking would only keep the refresh waiting.
+        if (tapped && LocationProvider.canLocateNow(applicationContext)) {
+            LocationFollower.follow(applicationContext, LocationFollower.MIN_GAP_MS)
+        }
         val result = Refresher.run(applicationContext, fetch = !freshEnough())
         if (inputData.getBoolean(KEY_CHAIN, false)) {
             // The chain is its own retry: the next run follows whatever this one found.
@@ -33,7 +41,7 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             return Result.success()
         }
         // A tap doesn't keep retrying in the background; tapping again is the retry.
-        if (inputData.getBoolean(KEY_TAPPED, false)) return Result.success()
+        if (tapped) return Result.success()
         return when (result) {
             is RefreshResult.Ok -> if (result.stale) Result.retry() else Result.success()
             RefreshResult.NoData -> Result.retry()

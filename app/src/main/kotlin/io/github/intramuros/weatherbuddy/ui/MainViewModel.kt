@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.intramuros.weatherbuddy.LocationFollower
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
@@ -77,28 +78,49 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private var thumbnailStyles: List<ArtStyle> = emptyList()
     private var thumbnailJob: Job? = null
 
-    /** The refresh and the quiet location check on opening. */
-    private val opening: Job
+    /** The refresh and the quiet location check each time the app comes into view. */
+    private var opening: Job? = null
 
     init {
         viewModelScope.launch { settingsRepo.settings.collect { s -> _state.update { it.copy(settings = s) } } }
-        opening = viewModelScope.launch {
-            loadFromDisk()
-            val snapshot = state.value.snapshot
-            val age = snapshot?.let { System.currentTimeMillis() - it.fetchedAtMillis }
-            // A new place can be saved while its weather failed to come, leaving the old place's.
-            val elsewhere = snapshot?.location != (settingsRepo.current().location ?: Location.DEFAULT)
-            // Older snapshots need hourly forecasts even when their weather is still fresh.
-            val incomplete = snapshot?.conditions?.hourly?.isEmpty() == true
-            refreshNow(fetch = age == null || age > STALE_AFTER_MS || elsewhere || incomplete)
-            // Finding the phone can take many seconds, so the saved place's weather comes first.
-            if (LocationProvider.hasPermission(app)) followLocation()
-        }
         // A made style's run starting, making progress or ending.
         viewModelScope.launch {
             StyleWorker.drawing(app).collect {
                 drawing = it
                 loadStyles()
+            }
+        }
+    }
+
+    /**
+     * Call each time the app comes into view, not only when it's first opened:
+     * shows what the background refresh fetched meanwhile, fetches if that's
+     * old or for another place, then follows the phone if it has moved.
+     */
+    fun onStart() {
+        if (opening?.isActive == true) {
+            // Still looking for the phone since the last start, which read the weather before
+            // the app was left; what the background refresh fetched since then shows anyway.
+            viewModelScope.launch { loadFromDisk() }
+            return
+        }
+        opening = viewModelScope.launch {
+            loadFromDisk()
+            val snapshot = state.value.snapshot
+            val age = snapshot?.let { System.currentTimeMillis() - it.fetchedAtMillis }
+            val place = settingsRepo.current().location
+            // A new place can be saved while its weather failed to come, leaving the old place's.
+            val elsewhere = snapshot?.location != (place ?: Location.DEFAULT)
+            // Older snapshots need hourly forecasts even when their weather is still fresh.
+            val incomplete = snapshot?.conditions?.hourly?.isEmpty() == true
+            if (age == null || age > STALE_AFTER_MS || elsewhere || incomplete) refreshNow(fetch = true)
+            // Finding the phone can take many seconds, so the saved place's weather comes first.
+            val changed = LocationFollower.follow(app, LocationFollower.MIN_GAP_MS)
+            when {
+                // Moved by this lookup, or by the wallpaper's while this one waited for it.
+                settingsRepo.current().location != place -> refreshNow(fetch = true)
+                // The weather for an unchanged place is already up; a newly found name only needs the widget redrawn.
+                changed -> refreshNow(fetch = false)
             }
         }
     }
@@ -134,7 +156,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     /** Call after the location permission has been granted. */
     fun useMyLocation() = viewModelScope.launch {
         // The tap's own lookup takes over from the opening's, so the two can't both save a place.
-        opening.cancelAndJoin()
+        opening?.cancelAndJoin()
         updateLocation()
     }
 
@@ -152,18 +174,6 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         }
         settingsRepo.setLocation(location, LocationProvider.placeName(app, location))
         refreshNow(fetch = true)
-    }
-
-    /** Follows the phone to a new place, quietly: if it can't be found, the saved place stays. */
-    private suspend fun followLocation() {
-        val location = LocationProvider.current(app) ?: return
-        val settings = settingsRepo.current()
-        val moved = location != settings.location
-        if (!moved && settings.placeName != null) return
-        val placeName = LocationProvider.placeName(app, location)
-        settingsRepo.setLocation(location, placeName)
-        // The weather for an unchanged place is already up; a newly found name only needs the widget redrawn.
-        if (moved) refreshNow(fetch = true) else if (placeName != null) refreshNow(fetch = false)
     }
 
     private suspend fun refreshNow(fetch: Boolean) {
