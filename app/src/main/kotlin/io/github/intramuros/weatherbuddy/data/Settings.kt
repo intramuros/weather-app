@@ -8,10 +8,13 @@ import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlin.math.roundToInt
@@ -30,7 +33,7 @@ data class Location(val latitude: Double, val longitude: Double) {
 
 data class Settings(
     /** Always one of [SettingsRepository.availableStyles]. */
-    val style: Style,
+    val style: ArtStyle,
     val wallpaperHome: Boolean,
     val wallpaperLock: Boolean,
     /** `null` until the user shares their location; [Location.DEFAULT] is used meanwhile. */
@@ -44,33 +47,39 @@ data class Settings(
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 class SettingsRepository(context: Context) {
-    private val store = context.applicationContext.dataStore
+    private val app = context.applicationContext
+    private val store = app.dataStore
+    private val customStyles = CustomStyleStore(app)
 
-    /** The styles whose pictures are all in the app, Pixel art first. */
-    val availableStyles: List<Style> by lazy {
-        val assets = context.applicationContext.assets
-        Style.entries.filter { style ->
-            val files = assets.list("scenes/${style.slug}").orEmpty().toSet()
-            ScenePicture.entries.all { style.scene(it).substringAfterLast('/') in files }
-        }
-    }
+    /**
+     * The styles that can be picked: the app's own whose pictures are all there,
+     * Pixel art first, then the complete ones the user made, oldest first. Reads
+     * files; call off the main thread.
+     */
+    fun availableStyles(): List<ArtStyle> = shippedStyles(app) + customStyles.complete()
 
     val settings: Flow<Settings> = store.data.map { prefs ->
         val lat = prefs[LATITUDE]
         val lon = prefs[LONGITUDE]
         Settings(
-            style = Style.fromSlug(prefs[STYLE])?.takeIf { it in availableStyles } ?: Style.PIXEL_ART,
+            style = style(prefs[STYLE]),
             wallpaperHome = prefs[WALLPAPER_HOME] ?: false,
             wallpaperLock = prefs[WALLPAPER_LOCK] ?: false,
             location = if (lat != null && lon != null) Location(lat, lon) else null,
             placeName = prefs[PLACE_NAME],
             wallpaperKey = prefs[WALLPAPER_KEY],
         )
-    }
+    }.flowOn(Dispatchers.IO) // A made style is read from its file.
+
+    /** The style saved as [slug] if it can still be shown, Pixel art otherwise. */
+    private fun style(slug: String?): ArtStyle =
+        Style.fromSlug(slug)?.takeIf { it in shippedStyles(app) }
+            ?: customStyles.load(slug)?.takeIf { customStyles.isComplete(it) }
+            ?: Style.PIXEL_ART
 
     suspend fun current(): Settings = settings.first()
 
-    suspend fun setStyle(style: Style) = store.edit { it[STYLE] = style.slug }
+    suspend fun setStyle(style: ArtStyle) = store.edit { it[STYLE] = style.slug }
 
     suspend fun setWallpaperHome(enabled: Boolean) = store.edit { it[WALLPAPER_HOME] = enabled }
 
@@ -85,6 +94,16 @@ class SettingsRepository(context: Context) {
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }
 
     private companion object {
+        /** The app's assets don't change while it runs, so they're listed once. */
+        @Volatile
+        private var shipped: List<Style>? = null
+
+        /** The app's own styles whose pictures are all in its assets, Pixel art first. */
+        fun shippedStyles(context: Context): List<Style> = shipped ?: Style.entries.filter { style ->
+            val files = context.assets.list("scenes/${style.slug}").orEmpty().toSet()
+            ScenePicture.entries.all { style.scene(it).substringAfterLast('/') in files }
+        }.also { shipped = it }
+
         val STYLE = stringPreferencesKey("style")
         val WALLPAPER_HOME = booleanPreferencesKey("wallpaper_home")
         val WALLPAPER_LOCK = booleanPreferencesKey("wallpaper_lock")

@@ -10,6 +10,7 @@ import android.service.wallpaper.WallpaperService
 import android.view.Choreographer
 import android.view.SurfaceHolder
 import io.github.intramuros.weatherbuddy.WeatherUpdates
+import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.render.LiveRenderer
 import io.github.intramuros.weatherbuddy.work.RefreshWorker
@@ -31,7 +32,7 @@ class BuddyWallpaperService : WallpaperService() {
         private val scope = MainScope()
         private val startNanos = System.nanoTime()
         private var renderer: LiveRenderer? = null
-        private var style: Style? = null
+        private var style: ArtStyle? = null
         private var visible = false
         private var width = 0
         private var height = 0
@@ -51,7 +52,7 @@ class BuddyWallpaperService : WallpaperService() {
                 return
             }
             val (plan, newStyle) = current
-            renderer = withContext(Dispatchers.Default) { LiveRenderer(assets, plan, newStyle) }
+            renderer = withContext(Dispatchers.Default) { LiveRenderer(this@BuddyWallpaperService, plan, newStyle) }
             style = newStyle
             drawFrame()
         }

@@ -34,8 +34,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -43,6 +45,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -50,6 +53,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -64,6 +68,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -72,6 +77,7 @@ import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -79,13 +85,16 @@ import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.intramuros.weatherbuddy.R
+import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.Condition
+import io.github.intramuros.weatherbuddy.core.CustomStyle
 import io.github.intramuros.weatherbuddy.core.DayForecast
 import io.github.intramuros.weatherbuddy.core.Scene
-import io.github.intramuros.weatherbuddy.core.Style
+import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.TimeOfDay
 import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.LocationProvider
+import io.github.intramuros.weatherbuddy.data.StyleProblem
 import io.github.intramuros.weatherbuddy.labelRes
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
 import kotlinx.coroutines.launch
@@ -164,6 +173,8 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
     val location = settings?.location ?: Location.DEFAULT
     val playback = rememberRainPlayback(state.snapshot, location)
     val mapTimeZone = state.snapshot?.takeIf { it.location == location }?.conditions?.timeZone
+    // The made style the user asked to delete, until they confirm.
+    var deleting by remember { mutableStateOf<CustomStyle?>(null) }
     LifecycleResumeEffect(Unit) {
         vm.checkLiveWallpaper()
         onPauseOrDispose {}
@@ -225,7 +236,7 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
                     // More styles than fit across a phone, so the row scrolls, starting at the chosen one.
                     val styleScroll = rememberScrollState()
                     val cardStep = with(LocalDensity.current) { (STYLE_CARD_WIDTH + STYLE_CARD_GAP).roundToPx() }
-                    LaunchedEffect(Unit) { styleScroll.scrollTo(state.styles.indexOf(settings.style).coerceAtLeast(0) * cardStep) }
+                    LaunchedEffect(Unit) { styleScroll.scrollTo(state.styles.indexOfFirst { it.slug == settings.style.slug }.coerceAtLeast(0) * cardStep) }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(STYLE_CARD_GAP),
                         modifier = Modifier.horizontalScroll(styleScroll),
@@ -233,18 +244,31 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
                         state.styles.forEach { style ->
                             StyleCard(
                                 style = style,
-                                thumbnail = state.thumbnails[style],
-                                selected = style == settings.style,
+                                thumbnail = state.thumbnails[style.slug],
+                                selected = style.slug == settings.style.slug,
                                 onClick = { vm.selectStyle(style) },
                                 modifier = Modifier.width(STYLE_CARD_WIDTH),
                             )
                         }
                     }
                 }
+                state.unfinished.forEach {
+                    UnfinishedStyleCard(it, onStop = vm::stopStyle, onContinue = vm::continueStyle, onDelete = { deleting = it.style })
+                }
                 OutlinedButton(
                     onClick = { context.startActivity(GalleryActivity.intent(context, settings.style)) },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.browse_pictures)) }
+                OutlinedButton(
+                    onClick = { context.startActivity(Intent(context, StyleStudioActivity::class.java)) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.new_style)) }
+                (settings.style as? CustomStyle)?.let { made ->
+                    TextButton(onClick = { deleting = made }) { Text(stringResource(R.string.delete_style, made.displayName)) }
+                }
+                deleting?.let { style ->
+                    DeleteStyleDialog(style, onDelete = { vm.deleteStyle(style); deleting = null }, onDismiss = { deleting = null })
+                }
 
                 Text(stringResource(R.string.show_on), style = MaterialTheme.typography.titleMedium)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -390,7 +414,7 @@ private fun dayName(date: LocalDate, today: LocalDate): String {
     }
 }
 
-/** Wide enough for the longest style name ("Watercolour") on one line. */
+/** Wide enough for the longest built-in style name ("Watercolour") on one line. */
 private val STYLE_CARD_WIDTH = 88.dp
 private val STYLE_CARD_GAP = 12.dp
 
@@ -399,7 +423,7 @@ private const val RAIN_THRESHOLD_MM = 0.1
 
 @Composable
 private fun StyleCard(
-    style: Style,
+    style: ArtStyle,
     thumbnail: android.graphics.Bitmap?,
     selected: Boolean,
     onClick: () -> Unit,
@@ -427,14 +451,72 @@ private fun StyleCard(
                 )
             }
         }
-        // A two-word name may wrap under its card.
+        // A two-word name may wrap under its card; a made style's name may be longer.
         Text(
             style.displayName,
             style = MaterialTheme.typography.labelLarge,
             textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp),
         )
     }
+}
+
+/** A made style with pictures still to draw: how far it got, and why it stopped if it did. */
+@Composable
+private fun UnfinishedStyleCard(
+    unfinished: UnfinishedStyle,
+    onStop: (CustomStyle) -> Unit,
+    onContinue: (CustomStyle) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val total = ScenePicture.entries.size
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(unfinished.style.displayName, style = MaterialTheme.typography.titleSmall)
+            if (unfinished.drawing) {
+                Text(stringResource(R.string.style_drawing, unfinished.done, total), style = MaterialTheme.typography.bodyMedium)
+                LinearProgressIndicator(progress = { unfinished.done / total.toFloat() }, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.style_drawing_hint), style = MaterialTheme.typography.bodySmall)
+            } else {
+                Text(
+                    when (unfinished.problem) {
+                        null -> pluralStringResource(R.plurals.style_stopped, total, unfinished.done, total)
+                        StyleProblem.KEY -> stringResource(R.string.style_problem_key)
+                        StyleProblem.QUOTA -> stringResource(R.string.style_problem_quota)
+                        StyleProblem.REJECTED -> stringResource(R.string.style_problem_rejected)
+                        StyleProblem.NETWORK -> stringResource(R.string.style_problem_network)
+                        StyleProblem.OTHER -> stringResource(R.string.style_problem_other, unfinished.problemMessage)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
+                if (unfinished.drawing) {
+                    TextButton(onClick = { onStop(unfinished.style) }) { Text(stringResource(R.string.style_stop)) }
+                } else {
+                    TextButton(onClick = onDelete) { Text(stringResource(R.string.delete)) }
+                    Button(onClick = { onContinue(unfinished.style) }) { Text(stringResource(R.string.style_continue)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeleteStyleDialog(style: CustomStyle, onDelete: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.delete_style_title, style.displayName)) },
+        text = { Text(stringResource(R.string.delete_style_text)) },
+        confirmButton = { TextButton(onClick = onDelete) { Text(stringResource(R.string.delete)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
 }
 
 @Composable

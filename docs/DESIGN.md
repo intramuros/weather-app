@@ -11,6 +11,7 @@ set as the home and/or lock screen wallpaper.
 | Platform | Android first |
 | Art styles | **Pixel art**, **Anime**, **Ukiyo-e**, **Delft blue**, **Mucha**, **Van Gogh**, **Watercolour**, **Paper cut**, **Art Deco** and **Pop art** (all but pixel art made with ChatGPT from the pixel-art scenes: `tools/scenes/<style>/PROMPTS.md`; the originals are in `tools/scenes/<style>/source/`). Every style draws the same scenes; the app only offers a style whose 30 pictures are all there. (Ukiyo-e and Delfts Blauw were first tried as layers combined on the device, with placeholder art, and dropped; they came back as finished pictures like anime.) |
 | Image production | Finished scenes, one per kind of weather and warmth, bundled with the app (offline, free) |
+| Made styles | The user can design their own style in the app, in a chat with OpenAI's `gpt-5.4-mini`, and have `gpt-image-2` draw its 30 pictures on the phone from the same prompts as the built-in styles. It runs on the user's own OpenAI API key, so the app stays free; see [Made styles](#made-styles). |
 | Character | The same girl in every scene of a style. In the eight styles drawn with Codex she is a young East Asian woman with long dark brunette hair, drawn the way her style draws women, in a setting and composition from the style's own tradition (a Hiroshige dyke, a Delft tile vignette, van Gogh's Arles, Mucha's ornament with no place behind it), so the styles look distinct. Pixel art and anime, made by hand, still show the original chestnut-haired girl on an Amsterdam canal |
 | Animation | **Live wallpaper** with rain, snow and wind moving over the scene; she is painted in and stays still. The widget and the "still picture" wallpaper options stay still. |
 | Forecast | Open-Meteo using KNMI HARMONIE (`models=knmi_seamless`) |
@@ -27,13 +28,17 @@ core/                  pure Kotlin/JVM, no Android
   Scene                  weather → sky/precipitation/day-night/wind
   ScenePicture, RenderPlan → the picture that fits, plus the particles over it
   Style                  per style: asset paths, frame rate, particle looks
+  ArtStyle, CustomStyle  a built-in Style or one the user made
+  ScenePrompts           a picture's prompt: tools/scenes' texts, packaged
+  StyleDesigner          OpenAI requests and answers for making a style
 
 app/                   Android (Compose, Glance, WorkManager, DataStore)
   RefreshWorker          every 30 min while online, and on the widget's
                          refresh button
   Refresher              fetch → plan → update widget and optional still wallpaper
                          → update widget → set wallpaper if enabled and changed
-  Compositor             draws the picture from assets/scenes/<style>/ into a Bitmap
+  Compositor             draws the picture (PictureSource: assets, or a made
+                         style's files) into a Bitmap
   LiveRenderer           draws the plan at any moment: the picture, then the
                          particles for that frame
   BuddyWallpaperService  the animated wallpaper; draws only while visible
@@ -46,6 +51,10 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
                          credits
   GalleryActivity        every picture of every style in a grid; tap one to see
                          it whole and swipe through the rest
+  StyleStudioActivity    makes a style: OpenAI key, chat, preview
+  StyleWorker            draws a made style's pictures in the background
+  CustomStyleStore       made styles, in filesDir/styles/<slug>/
+  ApiKeyStore            the OpenAI key, Keystore-encrypted, never backed up
 
 tools/preview/         animated GIF previews of the live wallpaper (`run`)
 tools/scenes/          turns the pixel-art scene mock-ups into assets (`prepare.py`),
@@ -191,6 +200,41 @@ make its 30 pictures, and import them. `tools/scenes/anime/PROMPTS.md` is how
 the anime ones are made; the other styles' folders in `tools/scenes/` have the
 prompts, and `codex_scene.sh` the script, that made them with the Codex CLI.
 
+### Made styles
+
+Besides the built-in styles, the user can make their own (**Make your own
+style**), on their own OpenAI account:
+
+1. **Key.** They paste an OpenAI API key. A free call (`GET /v1/models`)
+   checks it; then it's encrypted with a key that stays in the Android
+   Keystore and saved in `noBackupFilesDir`, so it's never in a backup. It's
+   only ever sent to OpenAI.
+2. **Conversation.** `StyleDesigner` chats with `gpt-5.4-mini` (Chat
+   Completions, low reasoning effort, a strict JSON schema). Its instructions
+   hold the prompt every picture shares (`codex-common.txt`), a scene line,
+   and the Watercolour `style.txt` as an example of a description. Each
+   answer is a reply and, once it knows enough, a proposal: a name, a
+   summary, the style's description (its `style.txt`) and its particle
+   colours and widths, which are clamped to what the app can draw.
+3. **Preview.** `gpt-image-2` redraws `partly-cloudy-mild` from its pixel-art
+   scene (`/v1/images/edits`, WebP, 1024 × 1024), with the prompt
+   `codex_scene.sh` would send. The user can draw it again, or keep chatting
+   to change the style.
+4. **The rest.** `StyleWorker` draws the other 29, three at a time, each from
+   its pixel-art scene and the preview, so she looks the same in all of them.
+   Each picture is saved as soon as it's drawn, so a run that's stopped picks
+   up where it left off; rate limits, server errors and the network are
+   retried. When all 30 are there the style is offered like the built-in ones,
+   and the app switches to it. The main screen shows its progress, or why it
+   stopped (key, credit, OpenAI's safety system, the network), with Continue.
+
+Core packages `codex-common.txt`, the scene lines from `anime/PROMPTS.md` and
+`watercolour/style.txt` from `tools/scenes`, so made styles are drawn with
+exactly the prompts that drew the built-in ones (`ScenePromptsTest`). Made
+styles are smooth, run at 24 fps and write the widget's text in the sky, like
+the other painted styles. Deleting one deletes its folder; if it was in use,
+the app goes back to pixel art.
+
 ## Roadmap
 
 1. ✅ Core logic: parsing, scene and picture choice, with tests
@@ -202,6 +246,8 @@ prompts, and `codex_scene.sh` the script, that made them with the Codex CLI.
 6. ✅ Art: 30 finished scenes each in pixel art, anime and eight
    painted styles
 7. ✅ Widget layout: place, temperature, condition, humidity and wind
-8. Polish: rain splashes, a forecast strip ("rain at 14:45"), pictures for
+8. ✅ Made styles: design a style in a chat and draw it on the phone, on the
+   user's own OpenAI key
+9. Polish: rain splashes, a forecast strip ("rain at 14:45"), pictures for
    the missing weather combinations, a private release key for a store
    release

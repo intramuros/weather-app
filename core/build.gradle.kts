@@ -19,6 +19,14 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
+// The prompts the painted styles were drawn from, so styles made in the app are drawn the same way (ScenePrompts).
+tasks.processResources {
+    from(rootProject.layout.projectDirectory.dir("tools/scenes")) {
+        include("codex-common.txt", "anime/PROMPTS.md", "watercolour/style.txt")
+        into("weatherbuddy/prompts")
+    }
+}
+
 tasks.test {
     useJUnitPlatform()
     filter.excludeTestsMatching("*.BuienradarForecastLiveTest")

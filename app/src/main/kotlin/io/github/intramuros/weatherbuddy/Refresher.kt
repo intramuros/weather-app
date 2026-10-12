@@ -79,7 +79,7 @@ object Refresher {
             val key = "$flags|${w}x$h|${settings.style.slug}|${plan.picture.slug}"
             if (key != settings.wallpaperKey) {
                 try {
-                    val bitmap = withContext(Dispatchers.Default) { Compositor(app.assets).render(plan, settings.style, w, h) }
+                    val bitmap = withContext(Dispatchers.Default) { Compositor(app).render(plan, settings.style, w, h) }
                     withContext(Dispatchers.IO) {
                         WallpaperManager.getInstance(app).setBitmap(bitmap, null, true, flags)
                     }

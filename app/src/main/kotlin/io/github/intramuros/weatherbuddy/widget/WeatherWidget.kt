@@ -38,8 +38,8 @@ import androidx.glance.text.Text
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.Refresher
 import io.github.intramuros.weatherbuddy.WeatherUpdates
+import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.RenderPlan
-import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import io.github.intramuros.weatherbuddy.render.Compositor
@@ -77,12 +77,12 @@ class WeatherWidget : GlanceAppWidget() {
             val pixels = pictureSize(size.width.value, size.height.value, maxPixels)
             drawn[pixels]?.let { return it }
             return withContext(Dispatchers.Default) {
-                Compositor(context.assets).render(picture.plan, picture.style, pixels.first, pixels.second, picture.info)
+                Compositor(context).render(picture.plan, picture.style, pixels.first, pixels.second, picture.info)
             }.also { drawn[pixels] = it }
         }
     }
 
-    private class Picture(val plan: RenderPlan, val style: Style, val info: WidgetInfo)
+    private class Picture(val plan: RenderPlan, val style: ArtStyle, val info: WidgetInfo)
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val initial = load(context)

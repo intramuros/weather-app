@@ -32,14 +32,4 @@ class WeatherStore(context: Context) {
         }
 
     fun saveSnapshot(snapshot: WeatherSnapshot) = weatherFile.writeAtomically { it.writeText(Json.encodeToString(snapshot)) }
-
-    /** Readers never see a half-written file. */
-    private fun File.writeAtomically(write: (File) -> Unit) {
-        val tmp = File(parentFile, "$name.tmp")
-        write(tmp)
-        if (!tmp.renameTo(this)) {
-            tmp.delete()
-            error("could not replace $this")
-        }
-    }
 }

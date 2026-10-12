@@ -8,17 +8,22 @@ import androidx.lifecycle.viewModelScope
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
+import io.github.intramuros.weatherbuddy.core.ArtStyle
+import io.github.intramuros.weatherbuddy.core.CustomStyle
 import io.github.intramuros.weatherbuddy.core.RenderPlan
 import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
+import io.github.intramuros.weatherbuddy.data.CustomStyleStore
 import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.Settings
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
+import io.github.intramuros.weatherbuddy.data.StyleProblem
 import io.github.intramuros.weatherbuddy.data.WeatherSnapshot
 import io.github.intramuros.weatherbuddy.data.WeatherStore
 import io.github.intramuros.weatherbuddy.render.Compositor
 import io.github.intramuros.weatherbuddy.wallpaper.BuddyWallpaperService
+import io.github.intramuros.weatherbuddy.work.StyleWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -34,24 +39,42 @@ data class UiState(
     val settings: Settings? = null,
     val snapshot: WeatherSnapshot? = null,
     /** The styles that can be picked; the picker only shows when there's a choice. */
-    val styles: List<Style> = emptyList(),
-    /** The current weather drawn in every available style, for the style picker. */
-    val thumbnails: Map<Style, Bitmap> = emptyMap(),
+    val styles: List<ArtStyle> = emptyList(),
+    /** The current weather drawn in every available style, by slug, for the style picker. */
+    val thumbnails: Map<String, Bitmap> = emptyMap(),
+    /** Made styles whose pictures aren't all drawn yet. */
+    val unfinished: List<UnfinishedStyle> = emptyList(),
     /** Whether our animated wallpaper is the current home screen wallpaper. */
     val liveWallpaperActive: Boolean = false,
     val busy: Boolean = false,
     @param:StringRes val message: Int? = null,
 )
 
+/** A made style with pictures still to draw: being drawn, waiting to be, or stopped. */
+data class UnfinishedStyle(
+    val style: CustomStyle,
+    val done: Int,
+    /** Being drawn, or waiting for the network to be. */
+    val drawing: Boolean,
+    /** Why drawing stopped, with OpenAI's own words; `null` while drawing, or if the user stopped it. */
+    val problem: StyleProblem?,
+    val problemMessage: String,
+)
+
 class MainViewModel(private val app: Application) : AndroidViewModel(app) {
     private val settingsRepo = SettingsRepository(app)
     private val store = WeatherStore(app)
+    private val customStyles = CustomStyleStore(app)
+
+    /** The made styles being drawn, by slug, with how many pictures are done. */
+    private var drawing: Map<String, Int?> = emptyMap()
 
     private val _state = MutableStateFlow(UiState())
     val state: StateFlow<UiState> = _state.asStateFlow()
 
-    /** The picture the style thumbnails show. */
+    /** The picture the style thumbnails show, and the styles they show it in. */
     private var thumbnailPicture: ScenePicture? = null
+    private var thumbnailStyles: List<ArtStyle> = emptyList()
     private var thumbnailJob: Job? = null
 
     /** The refresh and the quiet location check on opening. */
@@ -71,10 +94,30 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             // Finding the phone can take many seconds, so the saved place's weather comes first.
             if (LocationProvider.hasPermission(app)) followLocation()
         }
+        // A made style's run starting, making progress or ending.
+        viewModelScope.launch {
+            StyleWorker.drawing(app).collect {
+                drawing = it
+                loadStyles()
+            }
+        }
     }
 
-    fun selectStyle(style: Style) = viewModelScope.launch {
+    fun selectStyle(style: ArtStyle) = viewModelScope.launch {
         settingsRepo.setStyle(style)
+        refreshNow(fetch = false)
+    }
+
+    /** Carries on drawing a made style's pictures. */
+    fun continueStyle(style: CustomStyle) = StyleWorker.start(app, style)
+
+    fun stopStyle(style: CustomStyle) = StyleWorker.stop(app, style.slug)
+
+    fun deleteStyle(style: CustomStyle) = viewModelScope.launch {
+        StyleWorker.stop(app, style.slug)
+        if (state.value.settings?.style?.slug == style.slug) settingsRepo.setStyle(Style.PIXEL_ART)
+        withContext(Dispatchers.IO) { customStyles.delete(style.slug) }
+        loadStyles()
         refreshNow(fetch = false)
     }
 
@@ -133,9 +176,27 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(busy = false, message = message) }
     }
 
+    /** The made styles still being drawn, and the ones that can be picked. */
+    private suspend fun loadStyles() {
+        val unfinished = withContext(Dispatchers.IO) {
+            customStyles.all().filterNot(customStyles::isComplete).map { style ->
+                val running = style.slug in drawing
+                val problem = if (running) null else customStyles.problem(style)
+                UnfinishedStyle(
+                    style = style,
+                    done = drawing[style.slug] ?: (ScenePicture.entries.size - customStyles.missing(style).size),
+                    drawing = running,
+                    problem = problem?.first,
+                    problemMessage = problem?.second.orEmpty(),
+                )
+            }
+        }
+        _state.update { it.copy(unfinished = unfinished) }
+        loadFromDisk()
+    }
+
     private suspend fun loadFromDisk() {
-        val snapshot = withContext(Dispatchers.IO) { store.loadSnapshot() }
-        val styles = settingsRepo.availableStyles
+        val (snapshot, styles) = withContext(Dispatchers.IO) { store.loadSnapshot() to settingsRepo.availableStyles() }
         // The last weather shows straight away; the thumbnails follow.
         _state.update { it.copy(snapshot = snapshot, styles = styles) }
         if (snapshot == null) {
@@ -143,17 +204,18 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             return
         }
         val plan = RenderPlan.plan(snapshot.conditions)
-        // A thumbnail shows only the picture, so it stays as long as the picture does. Drawing
-        // ten of them takes a moment, so it runs alongside and a refresh doesn't wait for it.
-        if (styles.size > 1 && plan.picture != thumbnailPicture) {
+        // A thumbnail shows only the picture, so it stays as long as the picture and the styles do.
+        // Drawing a dozen of them takes a moment, so it runs alongside and a refresh doesn't wait for it.
+        if (styles.size > 1 && (plan.picture != thumbnailPicture || styles != thumbnailStyles)) {
             thumbnailPicture = plan.picture
+            thumbnailStyles = styles
             thumbnailJob?.cancel()
             thumbnailJob = viewModelScope.launch {
-                val compositor = Compositor(app.assets)
+                val compositor = Compositor(app)
                 val thumbnails = withContext(Dispatchers.Default) {
-                    styles.associateWith {
+                    styles.associate {
                         ensureActive() // Stops between styles once a newer picture has taken over.
-                        compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT)
+                        it.slug to compositor.render(plan, it, THUMB_WIDTH, THUMB_HEIGHT)
                     }
                 }
                 _state.update { it.copy(thumbnails = thumbnails) }
