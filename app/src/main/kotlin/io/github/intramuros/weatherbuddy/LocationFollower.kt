@@ -61,7 +61,9 @@ object LocationFollower {
      */
     suspend fun arrived(context: Context, location: Location, timeMillis: Long): Boolean = mutex.withLock {
         val app = context.applicationContext
-        if (System.currentTimeMillis() - timeMillis > LocationProvider.MAX_LAST_KNOWN_AGE_MS) return@withLock false
+        // Ahead of the clock only if the clock was set back since, which leaves its age unknown.
+        val age = System.currentTimeMillis() - timeMillis
+        if (age < 0 || age > LocationProvider.MAX_LAST_KNOWN_AGE_MS) return@withLock false
         // Kept with the place, as the report can wait for the network longer than the app is kept running.
         // Saving checks again: the place can be saved meanwhile without this lock ([SettingsRepository.setLocation]).
         val locatedAt = SettingsRepository(app).current().locatedAt
