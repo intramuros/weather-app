@@ -2,6 +2,7 @@ package io.github.intramuros.weatherbuddy
 
 import android.content.Context
 import android.os.SystemClock
+import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import kotlinx.coroutines.sync.Mutex
@@ -12,10 +13,10 @@ import kotlinx.coroutines.sync.withLock
  * place stays. Unless location is allowed all the time, Android only says
  * where the phone is while the app is in use, so it's looked for when the app
  * comes into view, when the animated wallpaper does, and when the widget's
- * refresh button is tapped ([LocationProvider.canLocateNow]). The scheduled
- * refresh in between looks too only if the user opted in
- * ([io.github.intramuros.weatherbuddy.data.Settings.followInBackground]);
- * otherwise it reuses the saved place.
+ * refresh button is tapped ([LocationProvider.canLocateNow]). Only if the user
+ * opted in ([io.github.intramuros.weatherbuddy.data.Settings.followInBackground])
+ * does the scheduled refresh in between look too, and does Android say when the
+ * phone has moved ([LocationWatch]); otherwise they reuse the saved place.
  */
 object LocationFollower {
     /** For opening the app or tapping the widget: a lookup this recent is still current. */
@@ -47,17 +48,38 @@ object LocationFollower {
         val app = context.applicationContext
         if (!LocationProvider.hasPermission(app)) return@withLock false
         if (lookups.recent(SystemClock.elapsedRealtime(), minGapMs, onlyFound = inApp)) return@withLock false
-        val location = LocationProvider.current(app)
-        lookups.ended(SystemClock.elapsedRealtime(), found = location != null)
-        if (location == null) return@withLock false
+        val fix = LocationProvider.current(app)
+        lookups.ended(SystemClock.elapsedRealtime(), found = fix != null)
+        if (fix == null) return@withLock false
+        save(app, fix.location, fix.timeMillis)
+    }
 
+    /**
+     * Saves where Android said, without being asked ([LocationWatch]), the phone was at [timeMillis]
+     * (wall clock), unless that's old by now or the phone has been found since. Returns whether it
+     * saved a new place, or a name for the saved one.
+     */
+    suspend fun arrived(context: Context, location: Location, timeMillis: Long): Boolean = mutex.withLock {
+        val app = context.applicationContext
+        // Ahead of the clock only if the clock was set back since, which leaves its age unknown.
+        val age = System.currentTimeMillis() - timeMillis
+        if (age < 0 || age > LocationProvider.MAX_LAST_KNOWN_AGE_MS) return@withLock false
+        // Kept with the place, as the report can wait for the network longer than the app is kept running.
+        // Saving checks again: the place can be saved meanwhile without this lock ([SettingsRepository.setLocation]).
+        val locatedAt = SettingsRepository(app).current().locatedAt
+        if (locatedAt != null && timeMillis < locatedAt) return@withLock false
+        save(app, location, timeMillis)
+    }
+
+    /** Saves [location], where the phone was found at [locatedAt] (wall clock), unless it has been found since. */
+    private suspend fun save(app: Context, location: Location, locatedAt: Long): Boolean {
         val settingsRepo = SettingsRepository(app)
         val settings = settingsRepo.current()
         val moved = location != settings.location
-        if (!moved && settings.placeName != null) return@withLock false
+        // Still there: a move reported from before then is out of date.
+        if (!moved && settings.placeName != null && settingsRepo.stillAt(location, locatedAt)) return false
         val placeName = LocationProvider.placeName(app, location)
-        settingsRepo.setLocation(location, placeName)
-        moved || placeName != null
+        return settingsRepo.setLocation(location, placeName, locatedAt) && (moved || placeName != null)
     }
 }
 

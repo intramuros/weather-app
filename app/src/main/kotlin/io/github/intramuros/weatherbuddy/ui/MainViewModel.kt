@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.intramuros.weatherbuddy.LocationFollower
+import io.github.intramuros.weatherbuddy.LocationWatch
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
@@ -165,25 +166,32 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun refresh() = viewModelScope.launch { refreshNow(fetch = true) }
 
-    fun setFollowInBackground(enabled: Boolean) = viewModelScope.launch { settingsRepo.setFollowInBackground(enabled) }
+    fun setFollowInBackground(enabled: Boolean) = viewModelScope.launch {
+        settingsRepo.setFollowInBackground(enabled)
+        LocationWatch.sync(app)
+    }
 
     /** Call when returning to the app, e.g. from the system wallpaper screen, a permission prompt or the app's settings. */
-    fun checkSystemSettings() = _state.update {
-        it.copy(
-            liveWallpaperActive = BuddyWallpaperService.isActive(app),
-            locationAllowed = LocationProvider.hasPermission(app),
-            backgroundLocationAllowed = LocationProvider.hasBackgroundPermission(app),
-        )
+    fun checkSystemSettings() {
+        _state.update {
+            it.copy(
+                liveWallpaperActive = BuddyWallpaperService.isActive(app),
+                locationAllowed = LocationProvider.hasPermission(app),
+                backgroundLocationAllowed = LocationProvider.hasBackgroundPermission(app),
+            )
+        }
+        // Location may have been allowed all the time, or no longer.
+        viewModelScope.launch { LocationWatch.sync(app) }
     }
 
     private suspend fun updateLocation() {
         _state.update { it.copy(busy = true) }
-        val location = LocationProvider.current(app)
-        if (location == null) {
+        val fix = LocationProvider.current(app)
+        if (fix == null) {
             _state.update { it.copy(busy = false, message = R.string.error_location) }
             return
         }
-        settingsRepo.setLocation(location, LocationProvider.placeName(app, location))
+        settingsRepo.setLocation(fix.location, LocationProvider.placeName(app, fix.location), fix.timeMillis)
         refreshNow(fetch = true)
     }
 

@@ -18,7 +18,7 @@ set as the home and/or lock screen wallpaper.
 | Rain nowcast | Buienradar `raintext` (2 h ahead, 5-minute steps) |
 | Radar loop (main screen) | Buienradar future rain images over standard OpenStreetMap base tiles; available forecast up to 3 hours, sampled about every 10 minutes |
 | Language | **Kotlin** throughout. Pure logic sits in a plain Kotlin module (`core/`), so it can become Kotlin Multiplatform if iOS ever happens. |
-| Location | Coarse, rounded to ~1 km, and read only while the app is in use, which Android takes to cover more than having it open: each time the app comes into view, when the animated wallpaper does (at most every 15 minutes), and when the widget's refresh button is tapped (Android 11 and up). Background location is opt-in: with **Follow me in the background** on and location allowed all the time (asked for only then; Android 8 and 9 have no separate choice), the scheduled refresh also looks when it runs (every 10 to 90 minutes, depending on the rain). Otherwise it reuses the last saved location (default: De Bilt), so a phone showing only the widget or a still wallpaper moves with it only when it's tapped or the app is opened. Its town name comes from the platform `Geocoder`, when it has one. |
+| Location | Coarse, rounded to ~1 km, and read only while the app is in use, which Android takes to cover more than having it open: each time the app comes into view, when the animated wallpaper does (at most every 15 minutes), and when the widget's refresh button is tapped (the button starts a short foreground service, which Android counts as the app in use when a widget starts it). Background location is opt-in: with **Follow me in the background** on and location allowed all the time (asked for only then; Android 8 and 9 have no separate choice), Android tells the app when the phone has moved about a kilometre (low power, a few times an hour at most), and the scheduled refresh also looks when it runs (every 10 to 90 minutes, depending on the rain). Otherwise it reuses the last saved location (default: De Bilt), so a phone showing only the widget or a still wallpaper moves with it only when it's tapped or the app is opened. Its town name comes from the platform `Geocoder`, when it has one. |
 
 ## Architecture
 
@@ -33,8 +33,10 @@ core/                  pure Kotlin/JVM, no Android
   StyleDesigner          OpenAI requests and answers for making a style
 
 app/                   Android (Compose, Glance, WorkManager, DataStore)
-  RefreshWorker          every 30 min while online, and on the widget's
-                         refresh button
+  RefreshWorker          the scheduled refresh, every 10 to 90 min by the rain,
+                         and the refreshes nobody waits for
+  RefreshService         the widget's refresh button: a short foreground service,
+                         so it runs at once, to the end, and may look for the phone
   Refresher              fetch → plan → update widget and optional still wallpaper
                          → update widget → set wallpaper if enabled and changed
   Compositor             draws the picture (PictureSource: assets, or a made
@@ -44,6 +46,7 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   LocationFollower       follows the phone to a new place while the app is in use:
                          on opening, from the wallpaper, on the widget's button;
                          if opted in, also on the scheduled refresh
+  LocationWatch          if opted in, has Android say when the phone has moved
   BuddyWallpaperService  the animated wallpaper; draws only while visible
   InfoOverlay            draws the widget's icons and text: place, temperature,
                          condition, humidity, wind

@@ -15,15 +15,13 @@ import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
-import androidx.glance.action.ActionParameters
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.SizeMode
-import androidx.glance.appwidget.action.ActionCallback
-import androidx.glance.appwidget.action.actionRunCallback
+import androidx.glance.appwidget.action.actionStartService
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -47,7 +45,6 @@ import io.github.intramuros.weatherbuddy.render.WidgetInfo
 import io.github.intramuros.weatherbuddy.ui.MainActivity
 import io.github.intramuros.weatherbuddy.work.RefreshWorker
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.sqrt
@@ -90,7 +87,7 @@ class WeatherWidget : GlanceAppWidget() {
         val sizes = GlanceAppWidgetManager(context).getAppWidgetSizes(id)
         val initialMaxPixels = maxPicturePixels(context, sizes.size)
         sizes.forEach { initial.drawAt(context, it, initialMaxPixels) }
-        val initialRefreshing = RefreshWorker.tappedInProgress(context).first()
+        val initialRefreshing = RefreshService.refreshing.value
         provideContent {
             // While the widget is on screen it isn't rebuilt, so pick up new pictures here.
             val version by WeatherUpdates.version.collectAsState()
@@ -103,7 +100,7 @@ class WeatherWidget : GlanceAppWidget() {
                 val maxPixels = maxPicturePixels(context, GlanceAppWidgetManager(context).getAppWidgetSizes(id).size)
                 value = shown.drawAt(context, size, maxPixels)
             }
-            val refreshing by RefreshWorker.tappedInProgress(context).collectAsState(initialRefreshing)
+            val refreshing by RefreshService.refreshing.collectAsState(initialRefreshing)
             Content(image, shown.description, refreshing)
         }
     }
@@ -152,12 +149,12 @@ class WeatherWidget : GlanceAppWidget() {
     @Composable
     private fun RefreshButton(refreshing: Boolean) {
         val context = LocalContext.current
-        // Taps while refreshing are ignored by the worker, not passed on to open the app.
+        // Taps while refreshing are ignored by the service, not passed on to open the app.
         Box(
             modifier = GlanceModifier
                 .size(32.dp)
                 .background(ImageProvider(R.drawable.widget_button_background))
-                .clickable(actionRunCallback<RefreshAction>()),
+                .clickable(actionStartService<RefreshService>(isForegroundService = true)),
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -166,15 +163,6 @@ class WeatherWidget : GlanceAppWidget() {
                 modifier = GlanceModifier.size(20.dp),
             )
         }
-    }
-}
-
-/** The widget's refresh button. */
-class RefreshAction : ActionCallback {
-    override suspend fun onAction(context: Context, glanceId: GlanceId, parameters: ActionParameters) {
-        RefreshWorker.runTapped(context)
-        // An idle widget has nothing watching the work, so redraw it to show the dots.
-        WeatherWidget().update(context, glanceId)
     }
 }
 
