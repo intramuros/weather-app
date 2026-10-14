@@ -83,11 +83,9 @@ class MovedReceiver : BroadcastReceiver() {
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 // Android also says where the phone is each time watching starts, which is mostly where it was.
-                // Back there, a move still waiting for the network is out of date.
-                if (SettingsRepository(app).current().location != location) {
+                // Noting that it's still there also keeps a move from before then, if one is waiting, from replacing it.
+                if (!SettingsRepository(app).stillAt(location, fix.time, ifNewer = true)) {
                     RefreshWorker.runMoved(app, location, fix.time)
-                } else {
-                    RefreshWorker.cancelMoved(app)
                 }
             } finally {
                 pending.finish()

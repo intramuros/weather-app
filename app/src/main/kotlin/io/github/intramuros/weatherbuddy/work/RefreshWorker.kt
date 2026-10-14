@@ -115,10 +115,5 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(MOVED, ExistingWorkPolicy.REPLACE, request)
         }
-
-        /** Drops a [runMoved] refresh still waiting: the phone is back in the saved place. */
-        fun cancelMoved(context: Context) {
-            WorkManager.getInstance(context).cancelUniqueWork(MOVED)
-        }
     }
 }

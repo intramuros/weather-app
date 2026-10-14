@@ -98,16 +98,40 @@ class SettingsRepository(context: Context) {
 
     suspend fun setWallpaperLock(enabled: Boolean) = store.edit { it[WALLPAPER_LOCK] = enabled }
 
-    /** Saves where the phone was found at [locatedAt] (wall clock). */
-    suspend fun setLocation(location: Location, placeName: String?, locatedAt: Long) = store.edit {
-        it[LATITUDE] = location.latitude
-        it[LONGITUDE] = location.longitude
-        if (placeName != null) it[PLACE_NAME] = placeName else it.remove(PLACE_NAME)
-        it[LOCATED_AT] = locatedAt
+    /**
+     * Saves where the phone was found at [locatedAt] (wall clock). With [ifNewer], only if it hasn't
+     * been found since: a move Android reported can wait for the network, and naming a place takes a
+     * while. Checked in the same edit, so no other save can come in between. Returns whether it saved.
+     */
+    suspend fun setLocation(location: Location, placeName: String?, locatedAt: Long, ifNewer: Boolean = false): Boolean {
+        var saved = false
+        store.edit {
+            if (ifNewer && (it[LOCATED_AT] ?: Long.MIN_VALUE) > locatedAt) return@edit
+            it[LATITUDE] = location.latitude
+            it[LONGITUDE] = location.longitude
+            if (placeName != null) it[PLACE_NAME] = placeName else it.remove(PLACE_NAME)
+            it[LOCATED_AT] = locatedAt
+            saved = true
+        }
+        return saved
     }
 
-    /** Notes that the phone was found again at the saved location, at [locatedAt] (wall clock). */
-    suspend fun setLocatedAt(locatedAt: Long) = store.edit { it[LOCATED_AT] = locatedAt }
+    /**
+     * If [location] is still the saved one, notes that the phone was found there at [locatedAt]
+     * (wall clock), so a move from before then can't replace it; with [ifNewer], only if that's later
+     * than the time already saved. Returns whether it is.
+     */
+    suspend fun stillAt(location: Location, locatedAt: Long, ifNewer: Boolean = false): Boolean {
+        var still = false
+        store.edit {
+            val latitude = it[LATITUDE]
+            val longitude = it[LONGITUDE]
+            if (latitude == null || longitude == null || Location(latitude, longitude) != location) return@edit
+            still = true
+            if (!ifNewer || (it[LOCATED_AT] ?: Long.MIN_VALUE) < locatedAt) it[LOCATED_AT] = locatedAt
+        }
+        return still
+    }
 
     suspend fun setFollowInBackground(enabled: Boolean) = store.edit { it[FOLLOW_IN_BACKGROUND] = enabled }
 
