@@ -23,6 +23,9 @@ import java.util.Locale
 import kotlin.coroutines.resume
 import android.location.Location as AndroidLocation
 
+/** Where the phone was found, rounded ([Location.rounded]), and when (wall clock). */
+data class Fix(val location: Location, val timeMillis: Long)
+
 /**
  * Coarse location from the platform [LocationManager], without Google Play
  * services. Unless location is allowed all the time, Android only answers
@@ -63,8 +66,9 @@ object LocationProvider {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
+    /** Where the phone is, or was within [MAX_LAST_KNOWN_AGE_MS] when Android has nothing newer. */
     @SuppressLint("MissingPermission") // Checked by hasPermission().
-    suspend fun current(context: Context): Location? {
+    suspend fun current(context: Context): Fix? {
         if (!hasPermission(context)) return null
         val manager = context.getSystemService(LocationManager::class.java) ?: return null
         val providers = buildList {
@@ -98,8 +102,12 @@ object LocationProvider {
             }
             .filter { ageMillis(it) <= MAX_LAST_KNOWN_AGE_MS }
             .minByOrNull(::ageMillis)
-        return location?.let { Location.rounded(it.latitude, it.longitude) }
+        return location?.let(::fix)
     }
+
+    /** [location] rounded, found when its age says: unlike its own time, that doesn't jump when the clock is set. */
+    fun fix(location: AndroidLocation) =
+        Fix(Location.rounded(location.latitude, location.longitude), System.currentTimeMillis() - ageMillis(location))
 
     private fun ageMillis(location: AndroidLocation) =
         SystemClock.elapsedRealtime() - LocationCompat.getElapsedRealtimeMillis(location)

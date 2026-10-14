@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.await
 import androidx.work.workDataOf
 import io.github.intramuros.weatherbuddy.LocationFollower
 import io.github.intramuros.weatherbuddy.RefreshResult
@@ -105,15 +106,16 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         /**
          * For [io.github.intramuros.weatherbuddy.LocationWatch]: saves the place the phone was in at
          * [timeMillis], with its name, then fetches its weather. A newer place replaces one still waiting.
+         * Returns once it's queued, so the app can be ended after.
          */
-        fun runMoved(context: Context, location: Location, timeMillis: Long) {
+        suspend fun runMoved(context: Context, location: Location, timeMillis: Long) {
             val request = OneTimeWorkRequestBuilder<RefreshWorker>()
                 .setConstraints(online)
                 .setInputData(
                     workDataOf(KEY_LATITUDE to location.latitude, KEY_LONGITUDE to location.longitude, KEY_TIME to timeMillis),
                 )
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(MOVED, ExistingWorkPolicy.REPLACE, request)
+            WorkManager.getInstance(context).enqueueUniqueWork(MOVED, ExistingWorkPolicy.REPLACE, request).await()
         }
     }
 }

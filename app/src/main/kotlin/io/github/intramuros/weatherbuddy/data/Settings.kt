@@ -78,7 +78,7 @@ class SettingsRepository(context: Context) {
             wallpaperLock = prefs[WALLPAPER_LOCK] ?: false,
             location = if (lat != null && lon != null) Location(lat, lon) else null,
             placeName = prefs[PLACE_NAME],
-            locatedAt = prefs[LOCATED_AT],
+            locatedAt = prefs.locatedAt(),
             followInBackground = prefs[FOLLOW_IN_BACKGROUND] ?: false,
             wallpaperKey = prefs[WALLPAPER_KEY],
         )
@@ -99,14 +99,15 @@ class SettingsRepository(context: Context) {
     suspend fun setWallpaperLock(enabled: Boolean) = store.edit { it[WALLPAPER_LOCK] = enabled }
 
     /**
-     * Saves where the phone was found at [locatedAt] (wall clock). With [ifNewer], only if it hasn't
-     * been found since: a move Android reported can wait for the network, and naming a place takes a
-     * while. Checked in the same edit, so no other save can come in between. Returns whether it saved.
+     * Saves where the phone was found at [locatedAt] (wall clock), unless it has been found since: a
+     * move Android reported can wait for the network, a lookup can fall back on an older fix, and
+     * naming a place takes a while. Checked in the same edit, so no other save can come in between.
+     * Returns whether it saved.
      */
-    suspend fun setLocation(location: Location, placeName: String?, locatedAt: Long, ifNewer: Boolean = false): Boolean {
+    suspend fun setLocation(location: Location, placeName: String?, locatedAt: Long): Boolean {
         var saved = false
         store.edit {
-            if (ifNewer && (it[LOCATED_AT] ?: Long.MIN_VALUE) > locatedAt) return@edit
+            if ((it.locatedAt() ?: Long.MIN_VALUE) > locatedAt) return@edit
             it[LATITUDE] = location.latitude
             it[LONGITUDE] = location.longitude
             if (placeName != null) it[PLACE_NAME] = placeName else it.remove(PLACE_NAME)
@@ -118,17 +119,17 @@ class SettingsRepository(context: Context) {
 
     /**
      * If [location] is still the saved one, notes that the phone was found there at [locatedAt]
-     * (wall clock), so a move from before then can't replace it; with [ifNewer], only if that's later
-     * than the time already saved. Returns whether it is.
+     * (wall clock), if that's later than the time already saved, so a move from before then can't
+     * replace it. Returns whether it is.
      */
-    suspend fun stillAt(location: Location, locatedAt: Long, ifNewer: Boolean = false): Boolean {
+    suspend fun stillAt(location: Location, locatedAt: Long): Boolean {
         var still = false
         store.edit {
             val latitude = it[LATITUDE]
             val longitude = it[LONGITUDE]
             if (latitude == null || longitude == null || Location(latitude, longitude) != location) return@edit
             still = true
-            if (!ifNewer || (it[LOCATED_AT] ?: Long.MIN_VALUE) < locatedAt) it[LOCATED_AT] = locatedAt
+            if ((it.locatedAt() ?: Long.MIN_VALUE) < locatedAt) it[LOCATED_AT] = locatedAt
         }
         return still
     }
@@ -138,6 +139,12 @@ class SettingsRepository(context: Context) {
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }
 
     private companion object {
+        /**
+         * When the saved place was found, unless that's ahead of the clock: the clock was set back
+         * since, and such a time would turn away every place found until it came round again.
+         */
+        fun Preferences.locatedAt(): Long? = this[LOCATED_AT]?.takeIf { it <= System.currentTimeMillis() }
+
         /** The app's assets don't change while it runs, so they're listed once. */
         @Volatile
         private var shipped: List<Style>? = null

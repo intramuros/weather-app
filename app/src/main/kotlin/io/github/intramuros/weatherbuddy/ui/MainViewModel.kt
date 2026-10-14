@@ -186,12 +186,12 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     private suspend fun updateLocation() {
         _state.update { it.copy(busy = true) }
-        val location = LocationProvider.current(app)
-        if (location == null) {
+        val fix = LocationProvider.current(app)
+        if (fix == null) {
             _state.update { it.copy(busy = false, message = R.string.error_location) }
             return
         }
-        settingsRepo.setLocation(location, LocationProvider.placeName(app, location), System.currentTimeMillis())
+        settingsRepo.setLocation(fix.location, LocationProvider.placeName(app, fix.location), fix.timeMillis)
         refreshNow(fetch = true)
     }
 

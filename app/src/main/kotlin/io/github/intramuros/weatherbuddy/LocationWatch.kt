@@ -75,17 +75,17 @@ object LocationWatch {
 /** Hears from [LocationWatch] where the phone is, and has a new place saved and its weather fetched. */
 class MovedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val fix = IntentCompat.getParcelableExtra(intent, LocationManager.KEY_LOCATION_CHANGED, AndroidLocation::class.java)
+        val reported = IntentCompat.getParcelableExtra(intent, LocationManager.KEY_LOCATION_CHANGED, AndroidLocation::class.java)
             ?: return
-        val location = Location.rounded(fix.latitude, fix.longitude)
+        val fix = LocationProvider.fix(reported)
         val app = context.applicationContext
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
             try {
                 // Android also says where the phone is each time watching starts, which is mostly where it was.
                 // Noting that it's still there also keeps a move from before then, if one is waiting, from replacing it.
-                if (!SettingsRepository(app).stillAt(location, fix.time, ifNewer = true)) {
-                    RefreshWorker.runMoved(app, location, fix.time)
+                if (!SettingsRepository(app).stillAt(fix.location, fix.timeMillis)) {
+                    RefreshWorker.runMoved(app, fix.location, fix.timeMillis)
                 }
             } finally {
                 pending.finish()
