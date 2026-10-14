@@ -191,7 +191,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             _state.update { it.copy(busy = false, message = R.string.error_location) }
             return
         }
-        settingsRepo.setLocation(location, LocationProvider.placeName(app, location))
+        settingsRepo.setLocation(location, LocationProvider.placeName(app, location), System.currentTimeMillis())
         refreshNow(fetch = true)
     }
 

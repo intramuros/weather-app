@@ -51,28 +51,35 @@ object LocationFollower {
         val location = LocationProvider.current(app)
         lookups.ended(SystemClock.elapsedRealtime(), found = location != null)
         if (location == null) return@withLock false
-        save(app, location)
+        save(app, location, System.currentTimeMillis())
     }
 
     /**
      * Saves where Android said, without being asked ([LocationWatch]), the phone was at [timeMillis]
-     * (wall clock), unless that's old by now or a lookup has found the phone since. Returns whether
-     * it saved a new place, or a name for the saved one.
+     * (wall clock), unless that's old by now or the phone has been found since. Returns whether it
+     * saved a new place, or a name for the saved one.
      */
     suspend fun arrived(context: Context, location: Location, timeMillis: Long): Boolean = mutex.withLock {
-        val age = System.currentTimeMillis() - timeMillis
-        if (age > LocationProvider.MAX_LAST_KNOWN_AGE_MS) return@withLock false
-        if (lookups.foundSince(SystemClock.elapsedRealtime() - age)) return@withLock false
-        save(context.applicationContext, location)
+        val app = context.applicationContext
+        if (System.currentTimeMillis() - timeMillis > LocationProvider.MAX_LAST_KNOWN_AGE_MS) return@withLock false
+        // Kept with the place, as the report can wait for the network longer than the app is kept running.
+        val locatedAt = SettingsRepository(app).current().locatedAt
+        if (locatedAt != null && timeMillis <= locatedAt) return@withLock false
+        save(app, location, timeMillis)
     }
 
-    private suspend fun save(app: Context, location: Location): Boolean {
+    /** Saves [location], where the phone was found at [locatedAt] (wall clock). */
+    private suspend fun save(app: Context, location: Location, locatedAt: Long): Boolean {
         val settingsRepo = SettingsRepository(app)
         val settings = settingsRepo.current()
         val moved = location != settings.location
-        if (!moved && settings.placeName != null) return false
+        if (!moved && settings.placeName != null) {
+            // Still there: a move reported before now is out of date.
+            settingsRepo.setLocatedAt(locatedAt)
+            return false
+        }
         val placeName = LocationProvider.placeName(app, location)
-        settingsRepo.setLocation(location, placeName)
+        settingsRepo.setLocation(location, placeName, locatedAt)
         return moved || placeName != null
     }
 }
@@ -93,9 +100,6 @@ internal class Lookups {
         val last = (if (onlyFound) found else ended) ?: return false
         return now - last < gapMs
     }
-
-    /** Whether a lookup that found the phone ended after [time]. */
-    fun foundSince(time: Long): Boolean = found?.let { it > time } ?: false
 
     fun ended(now: Long, found: Boolean) {
         ended = now

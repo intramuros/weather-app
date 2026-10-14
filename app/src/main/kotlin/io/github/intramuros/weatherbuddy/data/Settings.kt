@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.intramuros.weatherbuddy.core.ArtStyle
@@ -41,6 +42,11 @@ data class Settings(
     /** Town or city of [location], if the platform could name it. */
     val placeName: String?,
     /**
+     * When the phone was last found at [location] (wall clock), so that a move Android reported
+     * earlier, still waiting for the network, doesn't take its place; `null` before this was kept.
+     */
+    val locatedAt: Long?,
+    /**
      * Whether the scheduled refresh looks for the phone too, not only the app while in use.
      * Needs location allowed all the time ([LocationProvider.hasBackgroundPermission]).
      */
@@ -72,6 +78,7 @@ class SettingsRepository(context: Context) {
             wallpaperLock = prefs[WALLPAPER_LOCK] ?: false,
             location = if (lat != null && lon != null) Location(lat, lon) else null,
             placeName = prefs[PLACE_NAME],
+            locatedAt = prefs[LOCATED_AT],
             followInBackground = prefs[FOLLOW_IN_BACKGROUND] ?: false,
             wallpaperKey = prefs[WALLPAPER_KEY],
         )
@@ -91,11 +98,16 @@ class SettingsRepository(context: Context) {
 
     suspend fun setWallpaperLock(enabled: Boolean) = store.edit { it[WALLPAPER_LOCK] = enabled }
 
-    suspend fun setLocation(location: Location, placeName: String?) = store.edit {
+    /** Saves where the phone was found at [locatedAt] (wall clock). */
+    suspend fun setLocation(location: Location, placeName: String?, locatedAt: Long) = store.edit {
         it[LATITUDE] = location.latitude
         it[LONGITUDE] = location.longitude
         if (placeName != null) it[PLACE_NAME] = placeName else it.remove(PLACE_NAME)
+        it[LOCATED_AT] = locatedAt
     }
+
+    /** Notes that the phone was found again at the saved location, at [locatedAt] (wall clock). */
+    suspend fun setLocatedAt(locatedAt: Long) = store.edit { it[LOCATED_AT] = locatedAt }
 
     suspend fun setFollowInBackground(enabled: Boolean) = store.edit { it[FOLLOW_IN_BACKGROUND] = enabled }
 
@@ -119,6 +131,7 @@ class SettingsRepository(context: Context) {
         val LONGITUDE = doublePreferencesKey("longitude")
         val WALLPAPER_KEY = stringPreferencesKey("wallpaper_key")
         val PLACE_NAME = stringPreferencesKey("place_name")
+        val LOCATED_AT = longPreferencesKey("located_at")
         val FOLLOW_IN_BACKGROUND = booleanPreferencesKey("follow_in_background")
     }
 }
