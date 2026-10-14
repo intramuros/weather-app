@@ -27,12 +27,13 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         // Only if the user opted in; it may have been turned off since Android said the phone moved.
         if (SettingsRepository(applicationContext).current().followInBackground) {
             val moved = movedTo()
-            when {
-                moved != null -> LocationFollower.arrived(applicationContext, moved.first, timeMillis = moved.second)
-                // With location allowed all the time, Android says where the phone is for any refresh.
-                // Where it doesn't, asking would only keep the refresh waiting.
-                LocationProvider.canLocateNow(applicationContext) ->
-                    LocationFollower.follow(applicationContext, LocationFollower.AUTO_GAP_MS)
+            // A move can wait for the network until it's too old to save, and Android won't say again while the
+            // phone stays there; a lookup of its own finds it then.
+            val saved = moved != null && LocationFollower.arrived(applicationContext, moved.first, timeMillis = moved.second)
+            // With location allowed all the time, Android says where the phone is for any refresh.
+            // Where it doesn't, asking would only keep the refresh waiting.
+            if (!saved && LocationProvider.canLocateNow(applicationContext)) {
+                LocationFollower.follow(applicationContext, LocationFollower.AUTO_GAP_MS)
             }
         }
         val result = Refresher.run(applicationContext, fetch = !Refresher.fetchedJustNow(applicationContext))
