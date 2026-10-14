@@ -30,11 +30,7 @@ object LocationFollower {
 
     private val mutex = Mutex()
 
-    /**
-     * When the last lookup ended, by [SystemClock.elapsedRealtime]; `null` before the first in
-     * this process.
-     */
-    private var lastLookup: Long? = null
+    private val lookups = Lookups()
 
     /**
      * Looks for the phone, unless a lookup ended less than [minGapMs] ago, and
@@ -42,13 +38,17 @@ object LocationFollower {
      * for the saved one. One lookup at a time, so the wallpaper, the app and
      * the widget can't each look and save at once; one that waited for
      * another usually needn't look itself.
+     *
+     * [inApp] is for the app on screen, where Android finds the phone best: only a lookup that
+     * found it holds this one back. One that didn't, often the widget's from the background
+     * while the app waited for it, would otherwise leave the old place showing.
      */
-    suspend fun follow(context: Context, minGapMs: Long): Boolean = mutex.withLock {
+    suspend fun follow(context: Context, minGapMs: Long, inApp: Boolean = false): Boolean = mutex.withLock {
         val app = context.applicationContext
         if (!LocationProvider.hasPermission(app)) return@withLock false
-        lastLookup?.let { if (SystemClock.elapsedRealtime() - it < minGapMs) return@withLock false }
+        if (lookups.recent(SystemClock.elapsedRealtime(), minGapMs, onlyFound = inApp)) return@withLock false
         val location = LocationProvider.current(app)
-        lastLookup = SystemClock.elapsedRealtime()
+        lookups.ended(SystemClock.elapsedRealtime(), found = location != null)
         if (location == null) return@withLock false
 
         val settingsRepo = SettingsRepository(app)
@@ -58,5 +58,28 @@ object LocationFollower {
         val placeName = LocationProvider.placeName(app, location)
         settingsRepo.setLocation(location, placeName)
         moved || placeName != null
+    }
+}
+
+/**
+ * When lookups ended, by [SystemClock.elapsedRealtime]; nothing before the first in this
+ * process.
+ */
+internal class Lookups {
+    private var ended: Long? = null
+    private var found: Long? = null
+
+    /**
+     * Whether a lookup ended less than [gapMs] before [now], or, with [onlyFound], one that
+     * found the phone.
+     */
+    fun recent(now: Long, gapMs: Long, onlyFound: Boolean): Boolean {
+        val last = (if (onlyFound) found else ended) ?: return false
+        return now - last < gapMs
+    }
+
+    fun ended(now: Long, found: Boolean) {
+        ended = now
+        if (found) this.found = now
     }
 }

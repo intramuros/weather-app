@@ -1,6 +1,7 @@
 package io.github.intramuros.weatherbuddy.work
 
 import android.content.Context
+import androidx.glance.appwidget.updateAll
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -18,13 +19,27 @@ import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import io.github.intramuros.weatherbuddy.data.WeatherStore
+import io.github.intramuros.weatherbuddy.widget.WeatherWidget
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val tapped = inputData.getBoolean(KEY_TAPPED, false)
+        return try {
+            refresh(tapped)
+        } finally {
+            // The widget shows its dots until this work has ended, but it only redraws while Glance keeps it
+            // running, which stops about 45 seconds after it's drawn: a slow run would leave them up. Drawing it
+            // now keeps it running past the end, however the run ended.
+            if (tapped) withContext(NonCancellable) { WeatherWidget().updateAll(applicationContext) }
+        }
+    }
+
+    private suspend fun refresh(tapped: Boolean): Result {
         // Android counts a tap on the widget as using the app (from Android 11 on), so it may say where the phone is;
         // with location allowed all the time it does for any refresh, which then follows the phone if the user opted in.
         // Where it doesn't, asking would only keep the refresh waiting.
