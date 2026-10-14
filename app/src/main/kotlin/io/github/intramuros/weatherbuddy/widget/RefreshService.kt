@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.glance.appwidget.updateAll
+import androidx.work.await
 import io.github.intramuros.weatherbuddy.LocationFollower
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.Refresher
@@ -53,9 +54,15 @@ class RefreshService : Service() {
         // Android expects every start from the button, a tap during a refresh too, to put it in the foreground.
         if (!goForeground()) {
             // Not allowed: the refresh still comes, as background work, without the dots or a lookup.
+            // The service stays until the work is queued, so the app isn't ended before.
             if (running?.isActive != true) {
-                RefreshWorker.runOnce(this)
-                stopSelf()
+                running = scope.launch {
+                    try {
+                        RefreshWorker.runOnce(this@RefreshService).await()
+                    } finally {
+                        stopSelf()
+                    }
+                }
             }
             return START_NOT_STICKY
         }

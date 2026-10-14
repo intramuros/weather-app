@@ -6,6 +6,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.Operation
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.await
@@ -98,9 +99,10 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 .enqueueUniqueWork(CHAIN, ExistingWorkPolicy.APPEND_OR_REPLACE, chainRequest(minutes))
         }
 
-        fun runOnce(context: Context) {
+        /** Returns the queueing, for a caller that may be ended right after to wait on. */
+        fun runOnce(context: Context): Operation {
             val request = OneTimeWorkRequestBuilder<RefreshWorker>().setConstraints(online).build()
-            WorkManager.getInstance(context).enqueueUniqueWork(ONCE, ExistingWorkPolicy.REPLACE, request)
+            return WorkManager.getInstance(context).enqueueUniqueWork(ONCE, ExistingWorkPolicy.REPLACE, request)
         }
 
         /**
