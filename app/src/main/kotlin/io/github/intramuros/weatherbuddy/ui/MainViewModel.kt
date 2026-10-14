@@ -118,7 +118,7 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
             val incomplete = snapshot?.conditions?.hourly?.isEmpty() == true
             if (age == null || age > STALE_AFTER_MS || elsewhere || incomplete) refreshNow(fetch = true)
             // Finding the phone can take many seconds, so the saved place's weather comes first.
-            val changed = LocationFollower.follow(app, LocationFollower.MIN_GAP_MS)
+            val changed = LocationFollower.follow(app, LocationFollower.MIN_GAP_MS, inApp = true)
             when {
                 // Moved by this lookup, or by the wallpaper's while this one waited for it.
                 settingsRepo.current().location != place -> refreshNow(fetch = true)
