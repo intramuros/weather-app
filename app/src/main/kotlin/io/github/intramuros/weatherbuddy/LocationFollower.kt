@@ -2,6 +2,7 @@ package io.github.intramuros.weatherbuddy
 
 import android.content.Context
 import android.os.SystemClock
+import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
 import kotlinx.coroutines.sync.Mutex
@@ -12,10 +13,10 @@ import kotlinx.coroutines.sync.withLock
  * place stays. Unless location is allowed all the time, Android only says
  * where the phone is while the app is in use, so it's looked for when the app
  * comes into view, when the animated wallpaper does, and when the widget's
- * refresh button is tapped ([LocationProvider.canLocateNow]). The scheduled
- * refresh in between looks too only if the user opted in
- * ([io.github.intramuros.weatherbuddy.data.Settings.followInBackground]);
- * otherwise it reuses the saved place.
+ * refresh button is tapped ([LocationProvider.canLocateNow]). Only if the user
+ * opted in ([io.github.intramuros.weatherbuddy.data.Settings.followInBackground])
+ * does the scheduled refresh in between look too, and does Android say when the
+ * phone has moved ([LocationWatch]); otherwise they reuse the saved place.
  */
 object LocationFollower {
     /** For opening the app or tapping the widget: a lookup this recent is still current. */
@@ -50,14 +51,29 @@ object LocationFollower {
         val location = LocationProvider.current(app)
         lookups.ended(SystemClock.elapsedRealtime(), found = location != null)
         if (location == null) return@withLock false
+        save(app, location)
+    }
 
+    /**
+     * Saves where Android said, without being asked ([LocationWatch]), the phone was at [timeMillis]
+     * (wall clock), unless that's old by now or a lookup has found the phone since. Returns whether
+     * it saved a new place, or a name for the saved one.
+     */
+    suspend fun arrived(context: Context, location: Location, timeMillis: Long): Boolean = mutex.withLock {
+        val age = System.currentTimeMillis() - timeMillis
+        if (age > LocationProvider.MAX_LAST_KNOWN_AGE_MS) return@withLock false
+        if (lookups.foundSince(SystemClock.elapsedRealtime() - age)) return@withLock false
+        save(context.applicationContext, location)
+    }
+
+    private suspend fun save(app: Context, location: Location): Boolean {
         val settingsRepo = SettingsRepository(app)
         val settings = settingsRepo.current()
         val moved = location != settings.location
-        if (!moved && settings.placeName != null) return@withLock false
+        if (!moved && settings.placeName != null) return false
         val placeName = LocationProvider.placeName(app, location)
         settingsRepo.setLocation(location, placeName)
-        moved || placeName != null
+        return moved || placeName != null
     }
 }
 
@@ -77,6 +93,9 @@ internal class Lookups {
         val last = (if (onlyFound) found else ended) ?: return false
         return now - last < gapMs
     }
+
+    /** Whether a lookup that found the phone ended after [time]. */
+    fun foundSince(time: Long): Boolean = found?.let { it > time } ?: false
 
     fun ended(now: Long, found: Boolean) {
         ended = now

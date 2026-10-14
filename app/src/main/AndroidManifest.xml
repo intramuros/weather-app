@@ -4,11 +4,14 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Coarse (~1 km) is plenty for weather; only used while the app is in use: open, its
-         animated wallpaper on screen, or its widget tapped. -->
+         animated wallpaper on screen, or its widget's refresh button tapped. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <!-- Only asked for when the user turns on "Follow me in the background", for the scheduled refresh. -->
+    <!-- Only asked for when the user turns on "Follow me in the background". -->
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <!-- The widget's refresh button runs as a foreground service, which looks for the phone. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <uses-feature
         android:name="android.software.live_wallpaper"
@@ -53,6 +56,15 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/weather_widget_info" />
         </receiver>
+
+        <receiver
+            android:name=".MovedReceiver"
+            android:exported="false" />
+
+        <service
+            android:name=".widget.RefreshService"
+            android:exported="false"
+            android:foregroundServiceType="location|shortService" />
 
         <service
             android:name=".wallpaper.BuddyWallpaperService"

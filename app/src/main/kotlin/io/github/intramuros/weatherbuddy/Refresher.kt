@@ -93,6 +93,19 @@ object Refresher {
         RefreshResult.Ok(snapshot, stale)
     }
 
+    /**
+     * Whether the saved place's weather was fetched moments ago, which is still current: the
+     * widget's button, the scheduled refresh and the wallpaper's can land close together.
+     */
+    suspend fun fetchedJustNow(context: Context): Boolean {
+        val app = context.applicationContext
+        val snapshot = withContext(Dispatchers.IO) { WeatherStore(app).loadSnapshot() } ?: return false
+        val place = SettingsRepository(app).current().location ?: Location.DEFAULT
+        return snapshot.location == place && System.currentTimeMillis() - snapshot.fetchedAtMillis < MIN_FETCH_GAP_MS
+    }
+
+    private const val MIN_FETCH_GAP_MS = 2 * 60 * 1000L
+
     /** The name shown on the widget: the saved place, or the default location's. */
     fun placeName(context: Context, settings: Settings): String? =
         if (settings.location == null) context.getString(R.string.place_default) else settings.placeName

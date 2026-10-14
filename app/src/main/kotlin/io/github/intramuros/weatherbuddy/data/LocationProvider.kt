@@ -32,7 +32,7 @@ import android.location.Location as AndroidLocation
  */
 object LocationProvider {
     /** A fix another app got this recently will do; an older one may be from a place the phone has left. */
-    private const val MAX_LAST_KNOWN_AGE_MS = 30 * 60 * 1000L
+    const val MAX_LAST_KNOWN_AGE_MS = 30 * 60 * 1000L
 
     fun hasPermission(context: Context) =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
@@ -88,7 +88,14 @@ object LocationProvider {
             }
         }
         val location = fresh ?: providers
-            .mapNotNull { manager.getLastKnownLocation(it) }
+            .mapNotNull {
+                try {
+                    manager.getLastKnownLocation(it)
+                } catch (_: SecurityException) {
+                    // Up to Android 10, the passive provider is only for apps allowed precise location.
+                    null
+                }
+            }
             .filter { ageMillis(it) <= MAX_LAST_KNOWN_AGE_MS }
             .minByOrNull(::ageMillis)
         return location?.let { Location.rounded(it.latitude, it.longitude) }

@@ -1,7 +1,6 @@
 package io.github.intramuros.weatherbuddy.work
 
 import android.content.Context
-import androidx.glance.appwidget.updateAll
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -9,7 +8,6 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import androidx.work.await
 import androidx.work.workDataOf
 import io.github.intramuros.weatherbuddy.LocationFollower
 import io.github.intramuros.weatherbuddy.RefreshResult
@@ -18,36 +16,26 @@ import io.github.intramuros.weatherbuddy.core.RefreshSchedule
 import io.github.intramuros.weatherbuddy.data.Location
 import io.github.intramuros.weatherbuddy.data.LocationProvider
 import io.github.intramuros.weatherbuddy.data.SettingsRepository
-import io.github.intramuros.weatherbuddy.data.WeatherStore
-import io.github.intramuros.weatherbuddy.widget.WeatherWidget
-import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
+/**
+ * The scheduled refresh, and refreshes nobody waits for. The widget's button has
+ * [io.github.intramuros.weatherbuddy.widget.RefreshService].
+ */
 class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        val tapped = inputData.getBoolean(KEY_TAPPED, false)
-        return try {
-            refresh(tapped)
-        } finally {
-            // The widget shows its dots until this work has ended, but it only redraws while Glance keeps it
-            // running, which stops about 45 seconds after it's drawn: a slow run would leave them up. Drawing it
-            // now keeps it running past the end, however the run ended.
-            if (tapped) withContext(NonCancellable) { WeatherWidget().updateAll(applicationContext) }
+        // Only if the user opted in; it may have been turned off since Android said the phone moved.
+        if (SettingsRepository(applicationContext).current().followInBackground) {
+            val moved = movedTo()
+            when {
+                moved != null -> LocationFollower.arrived(applicationContext, moved.first, timeMillis = moved.second)
+                // With location allowed all the time, Android says where the phone is for any refresh.
+                // Where it doesn't, asking would only keep the refresh waiting.
+                LocationProvider.canLocateNow(applicationContext) ->
+                    LocationFollower.follow(applicationContext, LocationFollower.AUTO_GAP_MS)
+            }
         }
-    }
-
-    private suspend fun refresh(tapped: Boolean): Result {
-        // Android counts a tap on the widget as using the app (from Android 11 on), so it may say where the phone is;
-        // with location allowed all the time it does for any refresh, which then follows the phone if the user opted in.
-        // Where it doesn't, asking would only keep the refresh waiting.
-        val follow = tapped || SettingsRepository(applicationContext).current().followInBackground
-        if (follow && LocationProvider.canLocateNow(applicationContext)) {
-            LocationFollower.follow(applicationContext, if (tapped) LocationFollower.MIN_GAP_MS else LocationFollower.AUTO_GAP_MS)
-        }
-        val result = Refresher.run(applicationContext, fetch = !freshEnough())
+        val result = Refresher.run(applicationContext, fetch = !Refresher.fetchedJustNow(applicationContext))
         if (inputData.getBoolean(KEY_CHAIN, false)) {
             // The chain is its own retry: the next run follows whatever this one found.
             val minutes = when (result) {
@@ -57,29 +45,29 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
             enqueueNext(applicationContext, minutes)
             return Result.success()
         }
-        // A tap doesn't keep retrying in the background; tapping again is the retry.
-        if (tapped) return Result.success()
         return when (result) {
             is RefreshResult.Ok -> if (result.stale) Result.retry() else Result.success()
             RefreshResult.NoData -> Result.retry()
         }
     }
 
-    /** Taps and the chain can land close together; weather fetched moments ago for this place is still current. */
-    private suspend fun freshEnough(): Boolean {
-        val snapshot = WeatherStore(applicationContext).loadSnapshot() ?: return false
-        val place = SettingsRepository(applicationContext).current().location ?: Location.DEFAULT
-        return snapshot.location == place && System.currentTimeMillis() - snapshot.fetchedAtMillis < MIN_FETCH_GAP_MS
+    /** Where Android said the phone has moved to, and when it was there, for a refresh [runMoved] queued. */
+    private fun movedTo(): Pair<Location, Long>? {
+        val latitude = inputData.getDouble(KEY_LATITUDE, Double.NaN)
+        val longitude = inputData.getDouble(KEY_LONGITUDE, Double.NaN)
+        if (latitude.isNaN() || longitude.isNaN()) return null
+        return Location(latitude, longitude) to inputData.getLong(KEY_TIME, 0L)
     }
 
     companion object {
         private const val LEGACY_PERIODIC = "refresh"
         private const val CHAIN = "refresh-adaptive"
         private const val ONCE = "refresh-now"
-        private const val TAPPED = "refresh-tapped"
-        private const val KEY_TAPPED = "tapped"
+        private const val MOVED = "refresh-moved"
         private const val KEY_CHAIN = "chain"
-        private const val MIN_FETCH_GAP_MS = 2 * 60 * 1000L
+        private const val KEY_LATITUDE = "latitude"
+        private const val KEY_LONGITUDE = "longitude"
+        private const val KEY_TIME = "time"
 
         private val online = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
         private val onlineAndCharged = Constraints.Builder()
@@ -114,20 +102,17 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
         }
 
         /**
-         * For the widget's refresh button. Runs even offline, so the tap always
-         * ends, showing the last known weather; taps while it runs are ignored.
-         * Returns once the work is enqueued, so [tappedInProgress] already says so.
+         * For [io.github.intramuros.weatherbuddy.LocationWatch]: saves the place the phone was in at
+         * [timeMillis], with its name, then fetches its weather. A newer place replaces one still waiting.
          */
-        suspend fun runTapped(context: Context) {
+        fun runMoved(context: Context, location: Location, timeMillis: Long) {
             val request = OneTimeWorkRequestBuilder<RefreshWorker>()
-                .setInputData(workDataOf(KEY_TAPPED to true))
+                .setConstraints(online)
+                .setInputData(
+                    workDataOf(KEY_LATITUDE to location.latitude, KEY_LONGITUDE to location.longitude, KEY_TIME to timeMillis),
+                )
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork(TAPPED, ExistingWorkPolicy.KEEP, request).await()
+            WorkManager.getInstance(context).enqueueUniqueWork(MOVED, ExistingWorkPolicy.REPLACE, request)
         }
-
-        /** Whether a [runTapped] refresh is waiting or running. */
-        fun tappedInProgress(context: Context): Flow<Boolean> =
-            WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(TAPPED)
-                .map { infos -> infos.any { !it.state.isFinished } }
     }
 }

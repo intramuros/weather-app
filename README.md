@@ -14,9 +14,10 @@ With **Use my location**, the weather follows your phone. It looks again
 each time you open the app, when the animated wallpaper comes into view (at
 most every 15 minutes) and when you tap the widget's refresh button. To have
 the widget and wallpaper keep up without any of that, turn on **Follow me in
-the background** and allow location all the time; the scheduled refresh then
-looks too. Without it, the app never asks for your location in the
-background.
+the background** and allow location all the time; Android then tells the app
+when you've moved about a kilometre (it checks a few times an hour, without
+GPS), and the scheduled refresh looks too. Without it, the app never asks for
+your location in the background.
 
 You can also **make your own style**: describe it in a short chat, look at a
 preview, and the app draws its 30 pictures on your phone with OpenAI's models.

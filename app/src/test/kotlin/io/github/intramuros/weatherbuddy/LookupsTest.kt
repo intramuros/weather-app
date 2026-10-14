@@ -33,6 +33,17 @@ class LookupsTest {
     }
 
     @Test
+    fun onlyALookupThatFoundThePhoneAfterAFixIsNewer() {
+        val lookups = Lookups()
+        assertFalse(lookups.foundSince(0))
+        lookups.ended(100, found = true)
+        lookups.ended(200, found = false)
+        assertTrue(lookups.foundSince(99))
+        assertFalse(lookups.foundSince(100))
+        assertFalse(lookups.foundSince(150))
+    }
+
+    @Test
     fun aLookupIsNoLongerRecentAfterTheGap() {
         val lookups = Lookups()
         lookups.ended(100, found = true)
