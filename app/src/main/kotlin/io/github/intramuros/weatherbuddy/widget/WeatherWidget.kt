@@ -51,7 +51,7 @@ import kotlin.math.sqrt
 
 /**
  * Shows the picture for the last known weather, temperature and wind included,
- * drawn in the widget's own shape so it fills it edge to edge;
+ * and the time it was fetched, drawn in the widget's own shape so it fills it edge to edge;
  * [io.github.intramuros.weatherbuddy.Refresher] keeps it current. The button
  * in the corner refreshes it now.
  */
@@ -107,10 +107,10 @@ class WeatherWidget : GlanceAppWidget() {
 
     private suspend fun load(context: Context): Shown = withContext(Dispatchers.IO) {
         val version = WeatherUpdates.version.value
-        val conditions = WeatherStore(context).loadSnapshot()?.conditions ?: return@withContext Shown(null, null, version)
+        val snapshot = WeatherStore(context).loadSnapshot() ?: return@withContext Shown(null, null, version)
         val settings = SettingsRepository(context).current()
-        val plan = RenderPlan.plan(conditions)
-        val info = WidgetInfo.from(context, conditions, plan.scene, Refresher.placeName(context, settings))
+        val plan = RenderPlan.plan(snapshot.conditions)
+        val info = WidgetInfo.from(context, snapshot.conditions, snapshot.fetchedAtMillis, plan.scene, Refresher.placeName(context, settings))
         Shown(Picture(plan, settings.style, info), info.describe(context), version)
     }
 

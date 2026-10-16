@@ -49,7 +49,7 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
   LocationWatch          if opted in, has Android say when the phone has moved
   BuddyWallpaperService  the animated wallpaper; draws only while visible
   InfoOverlay            draws the widget's icons and text: place, temperature,
-                         condition, humidity, wind
+                         condition, humidity, wind, and the time it was fetched
   WeatherWidget          Glance widget drawing the last weather's picture in its
                          own shape, with a refresh button in the bottom-right corner
   MainActivity           rain radar, hourly and daily forecast, style picker
@@ -177,7 +177,9 @@ icons, fills the gaps with the surrounding sky, and writes both files. The
 wallpaper uses the plain scene (its middle, on a phone). The widget draws the
 icons on top, then the live text where the mock-up had it: place, humidity
 and wind on the right, temperature and condition on the left. `SceneLayout`
-holds those positions per picture, measured from the artwork. The widget's
+holds those positions per picture, measured from the artwork. The time the
+weather was fetched goes a line below the wind's direction, in the condition's
+softer colour; the mock-ups had no spot for it. The widget's
 picture is drawn in the widget's own shape, the scene covering it like the
 wallpaper; on a widget that isn't square, the icons and text keep their size
 relative to its narrower side, at the top, with the left column against the
@@ -196,8 +198,9 @@ its `SceneLayout`. Every other style then needs the picture too.
 Other styles redraw the pixel-art scenes, keeping each one's sky, outfit and
 layout, so `ScenePicture.choose` works the same for all of them. They have no
 icon layer: the widget writes its text in the sky, which those pictures keep
-clear (temperature and condition top left; place, humidity and wind top
-right, over a soft shade). `tools/scenes/import_style.py` crops, scales and
+clear (temperature and condition top left; place, humidity, wind and the time
+it was fetched top right, over a soft shade). `tools/scenes/import_style.py`
+crops, scales and
 converts a folder of finished pictures; it writes nothing until all of them
 are there, and `StyleTest` fails on a half-finished style folder.
 
