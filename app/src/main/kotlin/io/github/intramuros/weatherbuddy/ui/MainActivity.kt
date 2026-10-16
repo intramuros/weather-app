@@ -214,6 +214,7 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
                         HourlyStrip(
                             it.conditions.hourly,
                             it.conditions.timeZone,
+                            Scene.from(it.conditions),
                             Modifier.align(Alignment.TopCenter),
                         )
                     }
@@ -603,7 +604,9 @@ private fun Credits() {
         withLink(LinkAnnotation.Url("https://github.com/scfried/soft-type-jersey")) { append("Jersey 10") }
         append(" and ")
         withLink(LinkAnnotation.Url("https://github.com/fontworks-fonts/DotGothic16")) { append("DotGothic16") }
-        append(" (SIL Open Font License).")
+        append(" (SIL Open Font License). Weather icons: ")
+        withLink(LinkAnnotation.Url("https://fonts.google.com/icons")) { append("Material Symbols") }
+        append(" (Apache License 2.0).")
     }
     Text(text, style = MaterialTheme.typography.bodySmall)
 }

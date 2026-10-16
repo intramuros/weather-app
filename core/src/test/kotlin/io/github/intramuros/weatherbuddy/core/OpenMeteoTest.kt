@@ -73,16 +73,17 @@ class OpenMeteoTest {
                 "temperature_2m": [14.2, 13.1, 12.0, null, 10.5],
                 "precipitation_probability": [20, null, 40, 0],
                 "precipitation": [0.0, 0.3, 1.0, 0.0, null],
-                "is_day": [1, 0, 0, 0, null]
+                "is_day": [1, 0, 0, 0, null],
+                "wind_gusts_10m": [41.0, 20.5, 30.0, 25.0]
             }
         }"""
         val c = OpenMeteo.parse(json)
         assertEquals("Europe/Amsterdam", c.timeZone)
         assertEquals(
             listOf(
-                HourForecast("2026-10-03T17:00", 3, 14.2, 20.0, 0.0, true),
-                HourForecast("2026-10-03T18:00", 61, 13.1, null, 0.3, false),
-                HourForecast("2026-10-03T21:00", 2, 10.5, null, 0.0, true),
+                HourForecast("2026-10-03T17:00", 3, 14.2, 20.0, 0.0, true, 41.0),
+                HourForecast("2026-10-03T18:00", 61, 13.1, null, 0.3, false, 20.5),
+                HourForecast("2026-10-03T21:00", 2, 10.5, null, 0.0, true, null),
             ),
             c.hourly,
         )
@@ -127,7 +128,7 @@ class OpenMeteoTest {
         assertTrue("models=knmi_seamless" in url)
         assertTrue("&daily=" in url)
         assertTrue("forecast_days=${OpenMeteo.FORECAST_DAYS}" in url)
-        assertTrue("&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,is_day" in url)
+        assertTrue("&hourly=temperature_2m,weather_code,precipitation_probability,precipitation,is_day,wind_gusts_10m" in url)
         assertTrue("&forecast_hours=12" in url)
         assertTrue("timezone=auto" in url)
     }

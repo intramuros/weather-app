@@ -68,6 +68,15 @@ class SummaryTest {
     }
 
     @Test
+    fun hourlyGustsMakeADryHourWindy() {
+        val hour = HourForecast("2026-10-04T14:00", 3, 12.0, null, 0.0, true, windGustsKmh = 50.0)
+        assertEquals(Wind.BREEZY, Scene.from(hour).wind)
+        assertEquals(Condition.WINDY, Condition.of(Scene.from(hour)))
+        assertEquals(Condition.CLOUDY, Condition.of(Scene.from(hour.copy(windGustsKmh = 20.0))))
+        assertEquals(Condition.RAIN, Condition.of(Scene.from(hour.copy(weatherCode = 61))))
+    }
+
+    @Test
     fun warmthBands() {
         assertEquals(Warmth.HOT, Warmth.of(25.0))
         assertEquals(Warmth.WARM, Warmth.of(21.0))

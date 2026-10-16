@@ -33,12 +33,12 @@ data class Scene(
             wind = windFromGusts(day.windGustsMaxKmh),
         )
 
-        /** Hourly conditions use the model alone; wind isn't fetched per hour. */
+        /** Hourly conditions use the model alone; calm when the hour has no gusts saved. */
         fun from(hour: HourForecast): Scene = Scene(
             sky = skyFromCode(hour.weatherCode),
             precipitation = precipitationFromCode(hour.weatherCode),
             timeOfDay = if (hour.isDay) TimeOfDay.DAY else TimeOfDay.NIGHT,
-            wind = Wind.CALM,
+            wind = hour.windGustsKmh?.let(::windFromGusts) ?: Wind.CALM,
         )
 
         private fun windFromGusts(gusts: Double) = when {

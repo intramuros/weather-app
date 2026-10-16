@@ -4,8 +4,9 @@ A cute girl dressed for the weather where you are, shown as an animated
 Android wallpaper (rain, snow and wind move around her), a widget, or a still
 lock screen. The widget also shows the place, temperature, humidity, wind and
 when the weather was last fetched, and has a button to refresh it. The app
-also shows the next hours over the picture alongside the forecast for the
-coming days. You can pick the art
+also shows the next hours over the picture, each with an icon for its
+weather (sunny, cloudy, windy, rain…), alongside the forecast for the coming
+days. You can pick the art
 style: **Pixel art**, **Anime**, **Ukiyo-e**, **Delft blue**, **Mucha** (Art
 Nouveau posters), **Van Gogh**, **Watercolour**, **Paper cut**, **Art Deco**
 or **Pop art**; each has one finished picture per kind of weather, and

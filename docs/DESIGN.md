@@ -52,7 +52,8 @@ app/                   Android (Compose, Glance, WorkManager, DataStore)
                          condition, humidity, wind, and the time it was fetched
   WeatherWidget          Glance widget drawing the last weather's picture in its
                          own shape, with a refresh button in the bottom-right corner
-  MainActivity           rain radar, hourly and daily forecast, style picker
+  MainActivity           rain radar, hourly (with an icon per hour; "Now" shows
+                         the picture's weather) and daily forecast, style picker
                          (once there's a choice), wallpaper switches, location,
                          credits
   GalleryActivity        every picture of every style in a grid; tap one to see

@@ -14,7 +14,7 @@ object OpenMeteo {
     private const val CURRENT_FIELDS = "temperature_2m,apparent_temperature,relative_humidity_2m,is_day,precipitation," +
         "weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index"
     private const val DAILY_FIELDS = "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,wind_gusts_10m_max"
-    private const val HOURLY_FIELDS = "temperature_2m,weather_code,precipitation_probability,precipitation,is_day"
+    private const val HOURLY_FIELDS = "temperature_2m,weather_code,precipitation_probability,precipitation,is_day,wind_gusts_10m"
     private const val FORECAST_HOURS = 12
 
     /** Today and the next four days. */
@@ -91,6 +91,7 @@ object OpenMeteo {
             precipitationProbabilityPercent = h.precipitation_probability.getOrNull(i),
             precipitationMm = h.precipitation.getOrNull(i) ?: 0.0,
             isDay = (h.is_day.getOrNull(i) ?: 1) != 0,
+            windGustsKmh = h.wind_gusts_10m.getOrNull(i),
         )
     }
 
@@ -139,6 +140,7 @@ object OpenMeteo {
         val precipitation_probability: List<Double?> = emptyList(),
         val precipitation: List<Double?> = emptyList(),
         val is_day: List<Int?> = emptyList(),
+        val wind_gusts_10m: List<Double?> = emptyList(),
     )
 }
 

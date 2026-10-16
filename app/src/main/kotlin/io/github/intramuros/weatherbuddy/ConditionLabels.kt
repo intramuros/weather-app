@@ -1,5 +1,6 @@
 package io.github.intramuros.weatherbuddy
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import io.github.intramuros.weatherbuddy.core.Condition
 import io.github.intramuros.weatherbuddy.core.SceneKind
@@ -20,6 +21,22 @@ fun Condition.labelRes(time: TimeOfDay): Int = when (this) {
     Condition.HAIL -> R.string.condition_hail
     Condition.THUNDERSTORM -> R.string.condition_thunderstorm
     Condition.WINDY -> R.string.condition_windy
+}
+
+/** The icon for a condition, as in the hourly forecast; it stands for [Condition.labelRes]. */
+@DrawableRes
+fun Condition.iconRes(time: TimeOfDay): Int = when (this) {
+    Condition.CLEAR -> if (time == TimeOfDay.DAY) R.drawable.ic_weather_clear_day else R.drawable.ic_weather_clear_night
+    Condition.PARTLY_CLOUDY -> if (time == TimeOfDay.DAY) R.drawable.ic_weather_partly_cloudy_day else R.drawable.ic_weather_partly_cloudy_night
+    Condition.CLOUDY -> R.drawable.ic_weather_cloudy
+    Condition.FOG -> R.drawable.ic_weather_fog
+    Condition.DRIZZLE -> R.drawable.ic_weather_drizzle
+    Condition.RAIN -> R.drawable.ic_weather_rain
+    Condition.HEAVY_RAIN -> R.drawable.ic_weather_heavy_rain
+    Condition.SNOW -> R.drawable.ic_weather_snow
+    Condition.HAIL -> R.drawable.ic_weather_hail
+    Condition.THUNDERSTORM -> R.drawable.ic_weather_thunderstorm
+    Condition.WINDY -> R.drawable.ic_weather_windy
 }
 
 /** The weather a picture shows, in the same words as [Condition.labelRes]. */
