@@ -1,6 +1,11 @@
 package io.github.intramuros.weatherbuddy.ui
 
 import io.github.intramuros.weatherbuddy.core.HourForecast
+import io.github.intramuros.weatherbuddy.core.Precipitation
+import io.github.intramuros.weatherbuddy.core.Scene
+import io.github.intramuros.weatherbuddy.core.Sky
+import io.github.intramuros.weatherbuddy.core.TimeOfDay
+import io.github.intramuros.weatherbuddy.core.Wind
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -48,6 +53,18 @@ class HourlyForecastTest {
         assertTrue(upcomingHours(listOf(hour("2026-10-04T14:00"), hour("bad time")), start).isEmpty())
         val last = hour("2026-10-05T15:00")
         assertEquals(listOf(last), upcomingHours(listOf(hour("bad time"), last), start).map { it.first })
+    }
+
+    @Test
+    fun onlyTheCurrentHourShowsThePicturesWeather() {
+        val start = LocalDateTime.parse("2026-10-05T14:00")
+        val windy = Scene(Sky.CLEAR, Precipitation.NONE, TimeOfDay.DAY, Wind.BREEZY)
+        val current = hour("2026-10-05T14:00")
+        val later = hour("2026-10-05T15:00")
+        assertEquals(windy, hourScene(current, start, start, windy))
+        assertEquals(Scene.from(later), hourScene(later, start.plusHours(1), start, windy))
+        // Before the first fetch there's no picture, so the model's hour stands.
+        assertEquals(Scene.from(current), hourScene(current, start, start, null))
     }
 
     @Test

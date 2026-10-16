@@ -1,12 +1,17 @@
 package io.github.intramuros.weatherbuddy.ui
 
 import android.text.format.DateFormat
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ProvideTextStyle
@@ -15,12 +20,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -32,6 +40,7 @@ import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.core.Condition
 import io.github.intramuros.weatherbuddy.core.HourForecast
 import io.github.intramuros.weatherbuddy.core.Scene
+import io.github.intramuros.weatherbuddy.iconRes
 import io.github.intramuros.weatherbuddy.labelRes
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -39,9 +48,12 @@ import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 import kotlin.math.roundToInt
 
-/** A shade behind the forecast keeps it readable over every art style. */
+/**
+ * A shade behind the forecast keeps it readable over every art style. [now] is the
+ * weather in the picture, for the current hour.
+ */
 @Composable
-internal fun HourlyStrip(hours: List<HourForecast>, timeZone: String?, modifier: Modifier = Modifier) {
+internal fun HourlyStrip(hours: List<HourForecast>, timeZone: String?, now: Scene?, modifier: Modifier = Modifier) {
     val start = rememberForecastTime(remember(timeZone) { zoneOrDefault(timeZone) }, ChronoUnit.HOURS).toLocalDateTime()
     val coming = remember(hours, start) { upcomingHours(hours, start) }
     if (coming.size < 2) return
@@ -60,7 +72,7 @@ internal fun HourlyStrip(hours: List<HourForecast>, timeZone: String?, modifier:
         ) {
             coming.forEach { (hour, time) ->
                 val name = hourName(time, start, formatter, stringResource(R.string.now))
-                HourColumn(hour, name, Modifier.weight(1f))
+                HourColumn(hour, name, hourScene(hour, time, start, now), Modifier.weight(1f))
             }
             // Keep short forecasts in the same six-column layout.
             repeat(6 - coming.size) { Spacer(Modifier.weight(1f)) }
@@ -69,9 +81,9 @@ internal fun HourlyStrip(hours: List<HourForecast>, timeZone: String?, modifier:
 }
 
 @Composable
-private fun HourColumn(hour: HourForecast, name: String, modifier: Modifier) {
-    val scene = Scene.from(hour)
-    val condition = stringResource(Condition.of(scene).labelRes(scene.timeOfDay))
+private fun HourColumn(hour: HourForecast, name: String, scene: Scene, modifier: Modifier) {
+    val kind = Condition.of(scene)
+    val condition = stringResource(kind.labelRes(scene.timeOfDay))
     val temperature = hour.temperatureC.roundToInt()
     val probability = hour.precipitationProbabilityPercent
     val rain = when {
@@ -92,6 +104,7 @@ private fun HourColumn(hour: HourForecast, name: String, modifier: Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(name, style = LocalTextStyle.current.merge(MaterialTheme.typography.labelMedium), maxLines = 1)
+        ConditionIcon(kind.iconRes(scene.timeOfDay), Modifier.padding(vertical = 2.dp))
         Text(
             stringResource(R.string.degrees, temperature),
             style = LocalTextStyle.current.merge(MaterialTheme.typography.titleMedium),
@@ -107,6 +120,29 @@ private fun HourColumn(hour: HourForecast, name: String, modifier: Modifier) {
         )
     }
 }
+
+/** White like the text, with a shadow like the text's so it stands out over a pale map. */
+@Composable
+private fun ConditionIcon(@DrawableRes icon: Int, modifier: Modifier = Modifier) {
+    val painter = painterResource(icon)
+    Box(modifier) {
+        // Blurred from Android 12; a sharp shadow before that.
+        Icon(
+            painter,
+            contentDescription = null,
+            tint = Color.Black.copy(alpha = 0.5f),
+            modifier = Modifier.size(ICON_SIZE).offset(y = 1.dp).blur(1.dp, BlurredEdgeTreatment.Unbounded),
+        )
+        Icon(painter, contentDescription = null, tint = Color.White, modifier = Modifier.size(ICON_SIZE))
+    }
+}
+
+/**
+ * The weather an hour shows: the picture's for the current hour, since it also follows
+ * the radar and the wind right now, and otherwise the model's for that hour.
+ */
+internal fun hourScene(hour: HourForecast, time: LocalDateTime, start: LocalDateTime, now: Scene?): Scene =
+    now?.takeIf { time == start } ?: Scene.from(hour)
 
 /** A missing current hour must not make a future hour read as "Now". */
 internal fun hourName(time: LocalDateTime, start: LocalDateTime, formatter: DateTimeFormatter, now: String): String =
@@ -125,3 +161,5 @@ internal fun upcomingHours(hours: List<HourForecast>, start: LocalDateTime): Lis
 
 /** Light blue keeps rain amounts and chances distinct on the dark scrim. */
 private val RAIN_COLOUR = Color(0xFFADD8FF)
+
+private val ICON_SIZE = 22.dp

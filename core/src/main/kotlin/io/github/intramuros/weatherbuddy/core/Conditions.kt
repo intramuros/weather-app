@@ -78,4 +78,6 @@ data class HourForecast(
     val precipitationProbabilityPercent: Double?,
     val precipitationMm: Double,
     val isDay: Boolean,
+    /** The strongest gust in the hour. `null` in snapshots saved before it was fetched. */
+    val windGustsKmh: Double? = null,
 )

@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
+import android.text.format.DateFormat
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.labelRes
 import io.github.intramuros.weatherbuddy.core.ArtStyle
@@ -21,6 +22,7 @@ import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
 import io.github.intramuros.weatherbuddy.core.TimeOfDay
 import java.io.FileNotFoundException
+import java.util.Date
 import kotlin.math.roundToInt
 
 /** The words drawn on the widget, already formatted. */
@@ -33,6 +35,8 @@ data class WidgetInfo(
     val humidityLabelled: String?,
     val wind: String,
     val windDirection: String?,
+    /** The time of day the weather was fetched, in the phone's time format. */
+    val updated: String,
 ) {
     /** For screen readers, since the words are part of the picture. */
     fun describe(context: Context): String = listOfNotNull(
@@ -41,10 +45,11 @@ data class WidgetInfo(
         condition,
         humidity?.let { context.getString(R.string.humidity_description, it) },
         context.getString(R.string.wind_description, listOfNotNull(wind, windDirection).joinToString(" ")),
+        context.getString(R.string.updated_description, updated),
     ).joinToString(", ")
 
     companion object {
-        fun from(context: Context, conditions: Conditions, scene: Scene, place: String?) = WidgetInfo(
+        fun from(context: Context, conditions: Conditions, fetchedAtMillis: Long, scene: Scene, place: String?) = WidgetInfo(
             place = place,
             temperature = "${conditions.temperatureC.roundToInt()}°",
             condition = context.getString(Condition.of(scene).labelRes(scene.timeOfDay)),
@@ -52,6 +57,7 @@ data class WidgetInfo(
             humidityLabelled = conditions.humidityPercent?.let { context.getString(R.string.humidity_labelled, it.roundToInt()) },
             wind = context.getString(R.string.wind_speed, conditions.windSpeedKmh.roundToInt()),
             windDirection = conditions.windDirectionDeg?.let { CompassPoint.fromDegrees(it).name },
+            updated = DateFormat.getTimeFormat(context).format(Date(fetchedAtMillis)),
         )
     }
 }
@@ -61,9 +67,10 @@ data class WidgetInfo(
  *
  * Styles with icons ([Style.hasWidgetIcons]) get the picture's own icons
  * (weather, humidity drop, wind), then the text in the spots the artwork left
- * for it ([SceneLayout]). Other styles get the text in the sky, which their
- * pictures keep clear: temperature and condition on the left, place, humidity
- * and wind on the right. Every line shrinks to fit the space it has.
+ * for it ([SceneLayout]), and the time the weather was fetched on the line
+ * below the wind. Other styles get the text in the sky, which their pictures
+ * keep clear: temperature and condition on the left, place, humidity, wind and
+ * the time on the right. Every line shrinks to fit the space it has.
  *
  * Every line but the temperature is drawn larger than the mock-ups had it, to
  * be readable on a phone ([VALUES_SCALE]). Over the icons, the temperature
@@ -163,16 +170,20 @@ internal class InfoOverlay(private val assets: AssetManager) {
             val smallSize = smallCap * VALUES_SCALE
             // The condition grows down, keeping the artwork's gap below the temperature.
             // Humidity and wind grow both ways, to stay centred on their icons; the
-            // direction moves down with the wind line above it.
+            // direction moves down with the wind line above it, and the time a line
+            // further, the artwork having no spot for it.
             val growth = smallSize - smallCap
             text(info.temperature, tempX, tempBottom, tempCap, leftEdge, big = true, colour = SCENE_TEXT)
             text(info.condition, labelX, labelBottom + labelSize - labelCap, labelSize, leftEdge, big = false, colour = SCENE_LABEL)
             info.place?.let { text(it, placeX, placeBottom, smallSize, rightEdge, big = false, colour = SCENE_TEXT) }
             info.humidity?.let { text(it, valuesX, humidityBottom + growth / 2, smallSize, rightEdge, big = false, colour = SCENE_TEXT) }
             text(info.wind, valuesX, windBottom + growth / 2, smallSize, rightEdge, big = false, colour = SCENE_TEXT)
+            var bottom = directionBottom + growth * 1.5f
             info.windDirection?.let {
-                text(it, valuesX, directionBottom + growth * 1.5f, smallSize, rightEdge, big = false, colour = SCENE_TEXT)
+                text(it, valuesX, bottom, smallSize, rightEdge, big = false, colour = SCENE_TEXT)
+                bottom += directionBottom - windBottom + growth
             }
+            text(info.updated, valuesX, bottom, smallSize, rightEdge, big = false, colour = SCENE_LABEL)
         }
     }
 
@@ -191,11 +202,13 @@ internal class InfoOverlay(private val assets: AssetManager) {
         val margin = w * 0.05f
         val middle = w * 0.5f
 
-        fun text(value: String, x: Float, baseline: Float, size: Float, bold: Boolean, alignRight: Boolean = false) {
+        /** Returns the size the line was drawn at, once shrunk to fit. */
+        fun text(value: String, x: Float, baseline: Float, size: Float, bold: Boolean, alignRight: Boolean = false): Float {
             paint.typeface = Typeface.create(Typeface.SANS_SERIF, if (bold) Typeface.BOLD else Typeface.NORMAL)
             paint.textAlign = if (alignRight) Paint.Align.RIGHT else Paint.Align.LEFT
             paint.fitText(value, size, middle - margin * 1.5f)
             canvas.drawText(value, x, baseline, paint)
+            return paint.textSize
         }
 
         text(info.temperature, margin, h * 0.19f, h * 0.17f, bold = true)
@@ -212,7 +225,10 @@ internal class InfoOverlay(private val assets: AssetManager) {
             baseline += h * 0.06f * VALUES_SCALE
         }
         val wind = listOfNotNull(info.wind, info.windDirection).joinToString(" ")
-        text(wind, right, baseline, h * 0.045f * VALUES_SCALE, bold = false, alignRight = true)
+        val windSize = text(wind, right, baseline, h * 0.045f * VALUES_SCALE, bold = false, alignRight = true)
+        baseline += h * 0.06f * VALUES_SCALE
+        // On a narrow widget the longer lines shrink to fit; the short time keeps to the wind's size.
+        text(info.updated, right, baseline, windSize, bold = false, alignRight = true)
     }
 
     private companion object {
