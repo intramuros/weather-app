@@ -12,6 +12,7 @@ import androidx.work.WorkerParameters
 import androidx.work.await
 import androidx.work.workDataOf
 import io.github.intramuros.weatherbuddy.LocationFollower
+import io.github.intramuros.weatherbuddy.LocationReminder
 import io.github.intramuros.weatherbuddy.RefreshResult
 import io.github.intramuros.weatherbuddy.Refresher
 import io.github.intramuros.weatherbuddy.core.RefreshSchedule
@@ -38,6 +39,8 @@ class RefreshWorker(context: Context, params: WorkerParameters) : CoroutineWorke
                 LocationFollower.follow(applicationContext, LocationFollower.AUTO_GAP_MS)
             }
         }
+        // Crossing a border keeps the time zone in much of Europe; only the mobile network says so.
+        LocationReminder.check(applicationContext, notify = true)
         val result = Refresher.run(applicationContext, fetch = !Refresher.fetchedJustNow(applicationContext))
         if (inputData.getBoolean(KEY_CHAIN, false)) {
             // The chain is its own retry: the next run follows whatever this one found.

@@ -12,6 +12,8 @@
     <!-- The widget's refresh button runs as a foreground service, which looks for the phone. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- Asked for with location on first opening, to remind the user when location is off and they've travelled. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature
         android:name="android.software.live_wallpaper"
@@ -60,6 +62,16 @@
         <receiver
             android:name=".MovedReceiver"
             android:exported="false" />
+
+        <!-- Both broadcasts still reach apps that aren't running. -->
+        <receiver
+            android:name=".PlaceChangedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.location.PROVIDERS_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".widget.RefreshService"

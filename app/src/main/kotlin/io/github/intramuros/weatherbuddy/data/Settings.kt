@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.intramuros.weatherbuddy.PlaceHint
 import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
@@ -51,6 +52,13 @@ data class Settings(
      * Needs location allowed all the time ([LocationProvider.hasBackgroundPermission]).
      */
     val followInBackground: Boolean,
+    /** Whether the app has asked for location on its first opening, so it asks only then. */
+    val askedForLocation: Boolean,
+    /**
+     * Whether to remind the user to turn location on: it's off, and the phone seems to have moved
+     * ([io.github.intramuros.weatherbuddy.LocationReminder]).
+     */
+    val locationReminder: Boolean,
     /** Identifies the picture last set as wallpaper, to avoid re-setting an identical one. */
     val wallpaperKey: String?,
 )
@@ -80,6 +88,8 @@ class SettingsRepository(context: Context) {
             placeName = prefs[PLACE_NAME],
             locatedAt = prefs.locatedAt(),
             followInBackground = prefs[FOLLOW_IN_BACKGROUND] ?: false,
+            askedForLocation = prefs[ASKED_FOR_LOCATION] ?: false,
+            locationReminder = prefs[LOCATION_REMINDER] ?: false,
             wallpaperKey = prefs[WALLPAPER_KEY],
         )
     }.flowOn(Dispatchers.IO) // A made style is read from its file.
@@ -136,6 +146,22 @@ class SettingsRepository(context: Context) {
 
     suspend fun setFollowInBackground(enabled: Boolean) = store.edit { it[FOLLOW_IN_BACKGROUND] = enabled }
 
+    suspend fun setAskedForLocation() = store.edit { it[ASKED_FOR_LOCATION] = true }
+
+    suspend fun setLocationReminder(enabled: Boolean) = store.edit { it[LOCATION_REMINDER] = enabled }
+
+    /** Where the phone last seemed to be, without location; `null` before the first look. */
+    suspend fun placeHint(): PlaceHint? {
+        val prefs = store.data.first()
+        return prefs[HINT_TIME_ZONE]?.let { PlaceHint(it, prefs[HINT_NETWORK_COUNTRY]) }
+    }
+
+    suspend fun setPlaceHint(hint: PlaceHint) = store.edit {
+        it[HINT_TIME_ZONE] = hint.timeZone
+        // Kept while there's no network: arriving with no signal isn't arriving in no country.
+        hint.networkCountry?.let { country -> it[HINT_NETWORK_COUNTRY] = country }
+    }
+
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }
 
     private companion object {
@@ -164,5 +190,9 @@ class SettingsRepository(context: Context) {
         val PLACE_NAME = stringPreferencesKey("place_name")
         val LOCATED_AT = longPreferencesKey("located_at")
         val FOLLOW_IN_BACKGROUND = booleanPreferencesKey("follow_in_background")
+        val ASKED_FOR_LOCATION = booleanPreferencesKey("asked_for_location")
+        val LOCATION_REMINDER = booleanPreferencesKey("location_reminder")
+        val HINT_TIME_ZONE = stringPreferencesKey("hint_time_zone")
+        val HINT_NETWORK_COUNTRY = stringPreferencesKey("hint_network_country")
     }
 }

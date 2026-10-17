@@ -6,6 +6,7 @@ import androidx.annotation.StringRes
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.intramuros.weatherbuddy.LocationFollower
+import io.github.intramuros.weatherbuddy.LocationReminder
 import io.github.intramuros.weatherbuddy.LocationWatch
 import io.github.intramuros.weatherbuddy.R
 import io.github.intramuros.weatherbuddy.RefreshResult
@@ -51,6 +52,8 @@ data class UiState(
     /** Whether location is allowed at all, and all the time. */
     val locationAllowed: Boolean = false,
     val backgroundLocationAllowed: Boolean = false,
+    /** Whether the app can't look for the phone: location isn't allowed, or is off for the whole phone. */
+    val locationOff: Boolean = true,
     val busy: Boolean = false,
     @param:StringRes val message: Int? = null,
 )
@@ -166,6 +169,11 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
 
     fun refresh() = viewModelScope.launch { refreshNow(fetch = true) }
 
+    /** Call once the app has asked for location on its first opening. */
+    fun askedForLocation() = viewModelScope.launch { settingsRepo.setAskedForLocation() }
+
+    fun dismissLocationReminder() = viewModelScope.launch { LocationReminder.dismiss(app) }
+
     fun setFollowInBackground(enabled: Boolean) = viewModelScope.launch {
         settingsRepo.setFollowInBackground(enabled)
         LocationWatch.sync(app)
@@ -178,10 +186,15 @@ class MainViewModel(private val app: Application) : AndroidViewModel(app) {
                 liveWallpaperActive = BuddyWallpaperService.isActive(app),
                 locationAllowed = LocationProvider.hasPermission(app),
                 backgroundLocationAllowed = LocationProvider.hasBackgroundPermission(app),
+                locationOff = LocationReminder.isOff(app),
             )
         }
-        // Location may have been allowed all the time, or no longer.
-        viewModelScope.launch { LocationWatch.sync(app) }
+        viewModelScope.launch {
+            // Location may have been allowed all the time, or no longer.
+            LocationWatch.sync(app)
+            // The app shows the reminder itself while it's open.
+            LocationReminder.check(app, notify = false)
+        }
     }
 
     private suspend fun updateLocation() {

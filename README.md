@@ -21,6 +21,13 @@ when you've moved about a kilometre (it checks a few times an hour, without
 GPS), and the scheduled refresh looks too. Without it, the app never asks for
 your location in the background.
 
+The first time you open the app, it asks to use your location (and, from
+Android 13, to send notifications). If location is off later, not allowed or
+switched off for the whole phone, and your phone seems to be somewhere else,
+the app reminds you to turn it on, with a card in the app and a notification.
+Without location it can only tell from the time zone and the mobile network's
+country, so it notices a trip abroad, not a move within the country.
+
 You can also **make your own style**: describe it in a short chat, look at a
 preview, and the app draws its 30 pictures on your phone with OpenAI's models.
 This needs your own [OpenAI API key](https://platform.openai.com/api-keys),
