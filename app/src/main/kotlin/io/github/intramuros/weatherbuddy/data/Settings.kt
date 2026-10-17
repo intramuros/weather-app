@@ -160,9 +160,10 @@ class SettingsRepository(context: Context) {
 
     /**
      * The phone has just been found: the next trip, for reminding to turn location on
-     * ([io.github.intramuros.weatherbuddy.LocationReminder]), is measured from here.
+     * ([io.github.intramuros.weatherbuddy.LocationReminder]), is measured from here. A country it can't
+     * tell now is left unknown, not carried over: the phone may have crossed a border to get here.
      */
-    private suspend fun foundHere() = setPlaceHint(PlaceHint.current(app).keepingCountryOf(placeHint()))
+    private suspend fun foundHere() = setPlaceHint(PlaceHint.current(app))
 
     suspend fun setPlaceHint(hint: PlaceHint) = store.edit {
         it[HINT_TIME_ZONE] = hint.timeZone
