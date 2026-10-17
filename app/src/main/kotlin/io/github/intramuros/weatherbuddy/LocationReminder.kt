@@ -50,8 +50,10 @@ object LocationReminder {
         val last = settingsRepo.placeHint()
         val here = PlaceHint.current(app).keepingCountryOf(last)
         if (!isOff(app)) {
-            // The app follows the phone by itself; the next trip is measured from here.
-            settingsRepo.setPlaceHint(here)
+            // The app follows the phone by itself; the next trip is measured from here. Only once it can
+            // look now, though: with location allowed only while in use, a scheduled refresh can't, and
+            // the trip so far would go unnoticed if location were turned off before the app was opened.
+            if (LocationProvider.canLocateNow(app)) settingsRepo.setPlaceHint(here)
             if (settingsRepo.current().locationReminder) settingsRepo.setLocationReminder(false)
             cancel(app)
             return
