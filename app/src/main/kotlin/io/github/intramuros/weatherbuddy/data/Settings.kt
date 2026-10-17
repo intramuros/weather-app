@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.intramuros.weatherbuddy.PlaceHint
 import io.github.intramuros.weatherbuddy.core.ArtStyle
 import io.github.intramuros.weatherbuddy.core.ScenePicture
 import io.github.intramuros.weatherbuddy.core.Style
@@ -51,6 +52,13 @@ data class Settings(
      * Needs location allowed all the time ([LocationProvider.hasBackgroundPermission]).
      */
     val followInBackground: Boolean,
+    /** Whether the app has asked for location on its first opening, so it asks only then. */
+    val askedForLocation: Boolean,
+    /**
+     * Whether to remind the user to turn location on: it's off, and the phone seems to have moved
+     * ([io.github.intramuros.weatherbuddy.LocationReminder]).
+     */
+    val locationReminder: Boolean,
     /** Identifies the picture last set as wallpaper, to avoid re-setting an identical one. */
     val wallpaperKey: String?,
 )
@@ -80,6 +88,8 @@ class SettingsRepository(context: Context) {
             placeName = prefs[PLACE_NAME],
             locatedAt = prefs.locatedAt(),
             followInBackground = prefs[FOLLOW_IN_BACKGROUND] ?: false,
+            askedForLocation = prefs[ASKED_FOR_LOCATION] ?: false,
+            locationReminder = prefs[LOCATION_REMINDER] ?: false,
             wallpaperKey = prefs[WALLPAPER_KEY],
         )
     }.flowOn(Dispatchers.IO) // A made style is read from its file.
@@ -114,6 +124,7 @@ class SettingsRepository(context: Context) {
             it[LOCATED_AT] = locatedAt
             saved = true
         }
+        if (saved) foundHere()
         return saved
     }
 
@@ -131,10 +142,33 @@ class SettingsRepository(context: Context) {
             still = true
             if ((it.locatedAt() ?: Long.MIN_VALUE) < locatedAt) it[LOCATED_AT] = locatedAt
         }
+        if (still) foundHere()
         return still
     }
 
     suspend fun setFollowInBackground(enabled: Boolean) = store.edit { it[FOLLOW_IN_BACKGROUND] = enabled }
+
+    suspend fun setAskedForLocation() = store.edit { it[ASKED_FOR_LOCATION] = true }
+
+    suspend fun setLocationReminder(enabled: Boolean) = store.edit { it[LOCATION_REMINDER] = enabled }
+
+    /** Where the phone last seemed to be, without location; `null` before the first look. */
+    suspend fun placeHint(): PlaceHint? {
+        val prefs = store.data.first()
+        return prefs[HINT_TIME_ZONE]?.let { PlaceHint(it, prefs[HINT_NETWORK_COUNTRY]) }
+    }
+
+    /**
+     * The phone has just been found: the next trip, for reminding to turn location on
+     * ([io.github.intramuros.weatherbuddy.LocationReminder]), is measured from here. A country it can't
+     * tell now is left unknown, not carried over: the phone may have crossed a border to get here.
+     */
+    private suspend fun foundHere() = setPlaceHint(PlaceHint.current(app))
+
+    suspend fun setPlaceHint(hint: PlaceHint) = store.edit {
+        it[HINT_TIME_ZONE] = hint.timeZone
+        if (hint.networkCountry != null) it[HINT_NETWORK_COUNTRY] = hint.networkCountry else it.remove(HINT_NETWORK_COUNTRY)
+    }
 
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }
 
@@ -164,5 +198,9 @@ class SettingsRepository(context: Context) {
         val PLACE_NAME = stringPreferencesKey("place_name")
         val LOCATED_AT = longPreferencesKey("located_at")
         val FOLLOW_IN_BACKGROUND = booleanPreferencesKey("follow_in_background")
+        val ASKED_FOR_LOCATION = booleanPreferencesKey("asked_for_location")
+        val LOCATION_REMINDER = booleanPreferencesKey("location_reminder")
+        val HINT_TIME_ZONE = stringPreferencesKey("hint_time_zone")
+        val HINT_NETWORK_COUNTRY = stringPreferencesKey("hint_network_country")
     }
 }

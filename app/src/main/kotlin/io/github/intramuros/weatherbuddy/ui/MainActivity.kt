@@ -1,10 +1,12 @@
 package io.github.intramuros.weatherbuddy.ui
 
 import android.Manifest
+import android.app.Activity
 import android.app.WallpaperManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -81,6 +83,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withLink
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -170,6 +174,9 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
     val requestLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) vm.useMyLocation()
     }
+    val askOnFirstOpening = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.ACCESS_COARSE_LOCATION] == true) vm.useMyLocation()
+    }
     // The answer is read again on resume, with the rest of what the system settings say.
     val requestBackgroundLocation = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     val settings = state.settings
@@ -186,6 +193,15 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
     LifecycleResumeEffect(Unit) {
         vm.checkSystemSettings()
         onPauseOrDispose {}
+    }
+    // Android only lets an app ask for permissions once it runs, so the first opening stands in for installing.
+    LaunchedEffect(settings?.askedForLocation) {
+        if (settings?.askedForLocation != false) return@LaunchedEffect
+        vm.askedForLocation()
+        val missing = FIRST_OPENING_PERMISSIONS.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) askOnFirstOpening.launch(missing.toTypedArray())
     }
 
     Scaffold { padding ->
@@ -234,6 +250,23 @@ private fun SettingsScreen(scroll: ScrollState, vm: MainViewModel = viewModel())
                 }
                 state.message?.let {
                     Text(stringResource(it), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+                if (settings?.locationReminder == true && state.locationOff) {
+                    LocationReminderCard(
+                        onTurnOn = {
+                            val activity = context as? Activity
+                            when {
+                                state.locationAllowed -> openLocationSettings(context)
+                                // Once declined twice, Android stops asking, so the app's settings are the way to allow it.
+                                activity != null && !ActivityCompat.shouldShowRequestPermissionRationale(
+                                    activity,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                                ) -> context.startActivity(appSettingsIntent(context))
+                                else -> requestLocation.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                            }
+                        },
+                        onDismiss = vm::dismissLocationReminder,
+                    )
                 }
                 RainForecast(snapshot, playback, Modifier.fillMaxWidth())
                 snapshot?.let { Forecast(it.conditions.forecast, it.conditions.timeZone) }
@@ -545,6 +578,25 @@ private fun UnfinishedStyleCard(
     }
 }
 
+/** Location is off, and the phone seems to be somewhere else than when it was last on. */
+@Composable
+private fun LocationReminderCard(onTurnOn: () -> Unit, onDismiss: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(R.string.location_reminder_title), style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.location_reminder_text), style = MaterialTheme.typography.bodyMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.not_now)) }
+                Button(onClick = onTurnOn) { Text(stringResource(R.string.turn_on_location)) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun DeleteStyleDialog(style: CustomStyle, onDelete: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
@@ -582,6 +634,21 @@ private fun SwitchRow(
 /** The system's page for this app, where its permissions are. */
 private fun appSettingsIntent(context: Context) =
     Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+
+/** The system's page for turning location on for the whole phone. */
+private fun openLocationSettings(context: Context) {
+    try {
+        context.startActivity(Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS))
+    }
+}
+
+/** Location, and from Android 13 notifications, which remind the user when location is off and they've travelled. */
+private val FIRST_OPENING_PERMISSIONS = buildList {
+    add(Manifest.permission.ACCESS_COARSE_LOCATION)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+}
 
 private fun setLiveWallpaper(context: Context) {
     try {
