@@ -1,6 +1,7 @@
 package io.github.intramuros.weatherbuddy
 
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -26,5 +27,21 @@ class PlaceHintTest {
     fun noNetworkIsntElsewhere() {
         assertFalse(PlaceHint("Europe/Amsterdam", null).isElsewhereFrom(home))
         assertFalse(home.isElsewhereFrom(PlaceHint("Europe/Amsterdam", null)))
+    }
+
+    @Test
+    fun losingTheSignalAtHomeKeepsTheCountry() {
+        val noSignal = PlaceHint("Europe/Amsterdam", null).keepingCountryOf(home)
+        assertEquals(home, noSignal)
+        // Driving into Belgium meanwhile still counts once the signal comes back.
+        assertTrue(PlaceHint("Europe/Amsterdam", "be").isElsewhereFrom(noSignal))
+    }
+
+    @Test
+    fun arrivingInAnotherTimeZoneWithNoSignalDropsTheCountry() {
+        val landed = PlaceHint("Europe/London", null).keepingCountryOf(home)
+        assertEquals(PlaceHint("Europe/London", null), landed)
+        // The signal coming back there isn't somewhere new again.
+        assertFalse(PlaceHint("Europe/London", "gb").isElsewhereFrom(landed))
     }
 }

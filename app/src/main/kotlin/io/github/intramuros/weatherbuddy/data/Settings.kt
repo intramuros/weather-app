@@ -158,8 +158,7 @@ class SettingsRepository(context: Context) {
 
     suspend fun setPlaceHint(hint: PlaceHint) = store.edit {
         it[HINT_TIME_ZONE] = hint.timeZone
-        // Kept while there's no network: arriving with no signal isn't arriving in no country.
-        hint.networkCountry?.let { country -> it[HINT_NETWORK_COUNTRY] = country }
+        if (hint.networkCountry != null) it[HINT_NETWORK_COUNTRY] = hint.networkCountry else it.remove(HINT_NETWORK_COUNTRY)
     }
 
     suspend fun setWallpaperKey(key: String) = store.edit { it[WALLPAPER_KEY] = key }

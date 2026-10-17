@@ -63,13 +63,12 @@
             android:name=".MovedReceiver"
             android:exported="false" />
 
-        <!-- Both broadcasts still reach apps that aren't running. -->
+        <!-- One of the few broadcasts that still reach apps that aren't running. -->
         <receiver
             android:name=".PlaceChangedReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
-                <action android:name="android.location.PROVIDERS_CHANGED" />
             </intent-filter>
         </receiver>
 

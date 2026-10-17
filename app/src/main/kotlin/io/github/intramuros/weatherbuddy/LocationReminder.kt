@@ -47,7 +47,8 @@ object LocationReminder {
     suspend fun check(context: Context, notify: Boolean) {
         val app = context.applicationContext
         val settingsRepo = SettingsRepository(app)
-        val here = PlaceHint.current(app)
+        val last = settingsRepo.placeHint()
+        val here = PlaceHint.current(app).keepingCountryOf(last)
         if (!isOff(app)) {
             // The app follows the phone by itself; the next trip is measured from here.
             settingsRepo.setPlaceHint(here)
@@ -55,7 +56,6 @@ object LocationReminder {
             cancel(app)
             return
         }
-        val last = settingsRepo.placeHint()
         // Once per new place: the reminder already shown, or dismissed, doesn't come back until the next.
         settingsRepo.setPlaceHint(here)
         if (last == null || !here.isElsewhereFrom(last)) return
@@ -114,21 +114,34 @@ data class PlaceHint(val timeZone: String, val networkCountry: String?) {
         timeZone != last.timeZone ||
             (networkCountry != null && last.networkCountry != null && networkCountry != last.networkCountry)
 
+    /**
+     * This, with [last]'s country if this has none and the time zone is the same: arriving with no
+     * signal isn't arriving in no country. Not across time zones, where the country may have changed
+     * too, or it would count as somewhere new again once the signal came back.
+     */
+    fun keepingCountryOf(last: PlaceHint?): PlaceHint =
+        if (networkCountry == null && last != null && last.timeZone == timeZone) copy(networkCountry = last.networkCountry) else this
+
     companion object {
-        fun current(context: Context) = PlaceHint(
-            TimeZone.getDefault().id,
-            context.getSystemService(TelephonyManager::class.java)?.networkCountryIso?.lowercase()?.takeIf { it.isNotEmpty() },
-        )
+        fun current(context: Context) = PlaceHint(TimeZone.getDefault().id, networkCountry(context))
+
+        private fun networkCountry(context: Context): String? = try {
+            context.getSystemService(TelephonyManager::class.java)?.networkCountryIso?.lowercase()?.takeIf { it.isNotEmpty() }
+        } catch (_: UnsupportedOperationException) {
+            // A phone without a mobile radio, such as a Wi-Fi-only tablet.
+            null
+        }
     }
 }
 
 /**
- * Hears when the phone's time zone changes, as it does on arriving in another one, and when
- * location is turned on or off for the whole phone.
+ * Hears when the phone's time zone changes, as it does on arriving in another one. Location being
+ * turned on is noticed when the app comes into view or the scheduled refresh runs: Android doesn't
+ * say so to apps that aren't running.
  */
 class PlaceChangedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_TIMEZONE_CHANGED && intent.action != LocationManager.PROVIDERS_CHANGED_ACTION) return
+        if (intent.action != Intent.ACTION_TIMEZONE_CHANGED) return
         val app = context.applicationContext
         val pending = goAsync()
         CoroutineScope(Dispatchers.Default).launch {
