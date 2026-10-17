@@ -124,6 +124,7 @@ class SettingsRepository(context: Context) {
             it[LOCATED_AT] = locatedAt
             saved = true
         }
+        if (saved) foundHere()
         return saved
     }
 
@@ -141,6 +142,7 @@ class SettingsRepository(context: Context) {
             still = true
             if ((it.locatedAt() ?: Long.MIN_VALUE) < locatedAt) it[LOCATED_AT] = locatedAt
         }
+        if (still) foundHere()
         return still
     }
 
@@ -155,6 +157,12 @@ class SettingsRepository(context: Context) {
         val prefs = store.data.first()
         return prefs[HINT_TIME_ZONE]?.let { PlaceHint(it, prefs[HINT_NETWORK_COUNTRY]) }
     }
+
+    /**
+     * The phone has just been found: the next trip, for reminding to turn location on
+     * ([io.github.intramuros.weatherbuddy.LocationReminder]), is measured from here.
+     */
+    private suspend fun foundHere() = setPlaceHint(PlaceHint.current(app).keepingCountryOf(placeHint()))
 
     suspend fun setPlaceHint(hint: PlaceHint) = store.edit {
         it[HINT_TIME_ZONE] = hint.timeZone

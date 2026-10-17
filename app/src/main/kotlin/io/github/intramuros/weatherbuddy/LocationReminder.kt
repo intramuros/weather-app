@@ -47,17 +47,16 @@ object LocationReminder {
     suspend fun check(context: Context, notify: Boolean) {
         val app = context.applicationContext
         val settingsRepo = SettingsRepository(app)
-        val last = settingsRepo.placeHint()
-        val here = PlaceHint.current(app).keepingCountryOf(last)
         if (!isOff(app)) {
-            // The app follows the phone by itself; the next trip is measured from here. Only once it can
-            // look now, though: with location allowed only while in use, a scheduled refresh can't, and
-            // the trip so far would go unnoticed if location were turned off before the app was opened.
-            if (LocationProvider.canLocateNow(app)) settingsRepo.setPlaceHint(here)
+            // The app can follow the phone again. The next trip is measured from where it's next found
+            // ([SettingsRepository.setLocation]), not from here: until then, the weather is still for
+            // the last place, and turning location off again should still bring the reminder.
             if (settingsRepo.current().locationReminder) settingsRepo.setLocationReminder(false)
             cancel(app)
             return
         }
+        val last = settingsRepo.placeHint()
+        val here = PlaceHint.current(app).keepingCountryOf(last)
         // Once per new place: the reminder already shown, or dismissed, doesn't come back until the next.
         settingsRepo.setPlaceHint(here)
         if (last == null || !here.isElsewhereFrom(last)) return
